@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telefonie Dashboard — Fabory Inside Sales</title>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<style>
+:root{
+  --blue:#1B6CB2;--blue-dark:#145494;--blue-light:#EBF3FB;--blue-mid:#D0E6F7;
+  --green:#1A8A4A;--green-pale:#EAF6EE;
+  --orange:#B45309;--orange-pale:#FEF3E2;
+  --red:#D93025;--red-pale:#FEF0EE;
+  --bg:#F4F6F9;--surface:#FFF;--surface2:#F9FAFB;
+  --border:#DDE3EA;--border-strong:#BCC8D6;
+  --text:#1A2332;--text-muted:#5A6B7D;--text-light:#8A97A5;
+  --font:'Open Sans',sans-serif;--mono:'JetBrains Mono',monospace;
+  --radius:6px;--shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05);
+  --shadow-md:0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+/* HEADER */
+header{background:var(--blue);color:white;display:flex;align-items:center;gap:16px;
+  padding:0 24px;height:56px;position:sticky;top:0;z-index:200;
+  box-shadow:0 2px 8px rgba(27,108,178,.3)}
+.logo{font-weight:700;font-size:20px;letter-spacing:2px;color:#fff}
+.logo-sep{width:1px;height:24px;background:rgba(255,255,255,.25)}
+header h1{font-size:14px;font-weight:500;color:rgba(255,255,255,.85)}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+#data-badge{font-size:12px;font-family:var(--mono);background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.75);
+  padding:4px 10px;border-radius:20px;white-space:nowrap}
+#data-badge.loaded{background:rgba(26,138,74,.2);border-color:rgba(26,138,74,.4);color:#6ee7a0}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:var(--radius);
+  font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border:none;transition:.15s;white-space:nowrap}
+.btn-ghost{background:rgba(255,255,255,.1);color:rgba(255,255,255,.85)}
+.btn-ghost:hover{background:rgba(255,255,255,.18)}
+.btn-white{background:white;color:var(--blue)}
+.btn-white:hover{background:var(--blue-light)}
+/* UPLOAD */
+#upload-section{max-width:660px;margin:48px auto;padding:0 24px}
+#upload-zone{border:2px dashed var(--border-strong);border-radius:var(--radius);
+  background:white;padding:48px 32px;text-align:center;cursor:pointer;transition:.2s}
+#upload-zone:hover,#upload-zone.drag-over{border-color:var(--blue);background:var(--blue-light)}
+#upload-zone svg{color:var(--text-light);margin-bottom:12px}
+#upload-zone:hover svg{color:var(--blue)}
+#upload-zone h2{font-size:16px;font-weight:700;margin-bottom:6px}
+#upload-zone p{font-size:13px;color:var(--text-muted);margin-bottom:18px}
+#upload-zone small{font-size:11px;color:var(--text-light);display:block;margin-top:12px}
+#file-input{display:none}
+#loaded-files{margin-top:14px;text-align:center}
+.file-pill{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border-radius:20px;
+  padding:4px 12px;font-size:12px;margin:3px;color:var(--text-muted)}
+.file-pill .pill-type{font-size:9px;font-weight:700;text-transform:uppercase;
+  padding:1px 5px;border-radius:3px;letter-spacing:.5px}
+.pill-int{background:var(--blue-mid);color:var(--blue)}
+.pill-perf{background:var(--green-pale);color:var(--green)}
+.file-pill .rm{cursor:pointer;color:var(--text-light);font-size:14px;line-height:1;margin-left:2px}
+.file-pill .rm:hover{color:var(--red)}
+#upload-error{color:var(--red);font-size:13px;margin-top:10px;text-align:center}
+.storage-banner{background:var(--blue-light);border:1px solid var(--blue-mid);border-radius:var(--radius);
+  padding:10px 16px;font-size:12px;color:var(--blue);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+/* FILTER BAR */
+#filter-bar{background:white;border-bottom:1px solid var(--border);
+  padding:8px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#filter-bar.hidden{display:none}
+.filter-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.toggle-group{display:flex;border:1px solid var(--border-strong);border-radius:var(--radius);overflow:hidden}
+.toggle-btn{padding:5px 13px;font-size:12px;font-weight:600;cursor:pointer;
+  border:none;background:white;color:var(--text-muted);font-family:var(--font);transition:.15s}
+.toggle-btn.active{background:var(--blue);color:white}
+.period-nav{display:flex;align-items:center;gap:6px}
+.period-arrow{width:28px;height:28px;border:1px solid var(--border-strong);border-radius:var(--radius);
+  background:white;cursor:pointer;font-size:14px;display:flex;align-items:center;
+  justify-content:center;color:var(--text-muted);transition:.15s;font-family:var(--font)}
+.period-arrow:hover{background:var(--blue-light);border-color:var(--blue);color:var(--blue)}
+.period-arrow:disabled{opacity:.3;cursor:default}
+#period-label{font-size:12px;font-weight:600;color:var(--text);min-width:180px;text-align:center;white-space:nowrap}
+/* MULTI-SELECT */
+.ms-wrap{position:relative}
+.ms-btn{display:flex;align-items:center;gap:6px;border:1px solid var(--border-strong);
+  border-radius:var(--radius);background:white;padding:5px 10px;font-size:12px;
+  font-family:var(--font);color:var(--text);cursor:pointer;min-width:160px;white-space:nowrap;transition:.15s}
+.ms-btn:hover,.ms-btn.open{border-color:var(--blue);background:var(--blue-light)}
+.ms-caret{margin-left:auto;color:var(--text-muted);font-size:10px}
+.ms-count{background:var(--blue);color:white;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700}
+.ms-menu{position:absolute;top:calc(100% + 4px);left:0;min-width:220px;max-height:280px;
+  overflow-y:auto;background:white;border:1px solid var(--border-strong);
+  border-radius:var(--radius);box-shadow:var(--shadow-md);z-index:300;display:none}
+.ms-menu.open{display:block}
+.ms-search{padding:8px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:white}
+.ms-search input{width:100%;border:1px solid var(--border-strong);border-radius:4px;
+  padding:4px 8px;font-size:12px;font-family:var(--font);outline:none}
+.ms-search input:focus{border-color:var(--blue)}
+.ms-item{display:flex;align-items:center;gap:8px;padding:7px 12px;font-size:12px;cursor:pointer;transition:background .1s}
+.ms-item:hover{background:var(--blue-light)}
+.ms-item input[type=checkbox]{accent-color:var(--blue);flex-shrink:0;pointer-events:none}
+.ms-item.all-item{font-weight:600;border-bottom:1px solid var(--border);background:var(--surface2)}
+/* TABS */
+#tabs-nav{background:white;border-bottom:1px solid var(--border);display:flex;padding:0 24px}
+#tabs-nav.hidden{display:none}
+.tab-btn{padding:13px 17px;font-size:13px;font-weight:500;cursor:pointer;border:none;
+  background:none;color:var(--text-muted);border-bottom:2px solid transparent;
+  font-family:var(--font);display:flex;align-items:center;gap:6px;margin-bottom:-1px;transition:.15s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:700}
+/* CONTENT */
+.tab-panel{display:none;padding:24px;max-width:1320px;margin:0 auto}
+.tab-panel.active{display:block}
+/* SUB-TABS */
+.sub-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px}
+.sub-tab-btn{padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;border:none;
+  background:none;color:var(--text-muted);border-bottom:2px solid transparent;
+  font-family:var(--font);transition:.15s;margin-bottom:-1px}
+.sub-tab-btn:hover{color:var(--text)}
+.sub-tab-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.sub-panel{display:none}.sub-panel.active{display:block}
+/* KPI CARDS */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+.kpi-card{background:white;border-radius:var(--radius);padding:18px 20px;
+  box-shadow:var(--shadow);border:1px solid var(--border);border-top:3px solid var(--border);transition:.2s}
+.kpi-card.st-green{border-top-color:var(--green)}.kpi-card.st-orange{border-top-color:var(--orange)}
+.kpi-card.st-red{border-top-color:var(--red)}.kpi-card.st-blue{border-top-color:var(--blue)}
+.kpi-card:hover{box-shadow:var(--shadow-md)}
+.kpi-label{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+.kpi-value{font-size:30px;font-weight:700;font-family:var(--mono);color:var(--text);line-height:1}
+.kpi-sub{font-size:11px;color:var(--text-muted);margin-top:6px}
+/* SECTION HEADER */
+.sec-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;margin-top:28px}
+.sec-hdr:first-child{margin-top:0}
+.sec-hdr h2{font-size:14px;font-weight:700;white-space:nowrap}
+.sec-line{flex:1;height:1px;background:var(--border)}
+/* TABLES */
+.table-wrap{background:white;border-radius:var(--radius);box-shadow:var(--shadow);
+  border:1px solid var(--border);overflow:hidden;margin-bottom:24px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--surface2);padding:9px 14px;text-align:left;font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);
+  border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{background:var(--blue-light);color:var(--blue)}
+th.s-asc::after{content:' ▲';font-size:9px;color:var(--blue)}
+th.s-desc::after{content:' ▼';font-size:9px;color:var(--blue)}
+td{padding:9px 14px;border-bottom:1px solid var(--bg)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surface2)}
+.num{font-family:var(--mono);text-align:right}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono)}
+.bg{background:var(--green-pale);color:var(--green)}
+.bo{background:var(--orange-pale);color:var(--orange)}
+.br{background:var(--red-pale);color:var(--red)}
+.mini-bar-bg{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;min-width:40px}
+.mini-bar{height:6px;background:var(--blue);border-radius:3px}
+/* DELTA INDICATOR */
+.delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-family:var(--mono)}
+.delta-pos{color:var(--red)}/* langer dan gemiddelde = rood */
+.delta-neg{color:var(--green)}/* korter dan gemiddelde = groen */
+.delta-bar{display:inline-block;height:4px;border-radius:2px;min-width:2px;max-width:60px}
+/* AGENT DETAIL */
+.agent-row{cursor:pointer}
+.agent-toggle{display:inline-flex;align-items:center;gap:6px}
+.agent-arrow{font-size:10px;color:var(--text-light);transition:transform .2s;display:inline-block}
+.agent-arrow.open{transform:rotate(90deg);color:var(--blue)}
+.agent-detail-row td{padding:0;background:var(--bg)}
+.agent-detail-inner{padding:12px 16px 16px 40px;border-top:1px solid var(--border)}
+.detail-search{border:1px solid var(--border-strong);border-radius:var(--radius);
+  padding:6px 10px;font-size:12px;font-family:var(--font);width:300px;margin-bottom:10px;outline:none}
+.detail-search:focus{border-color:var(--blue)}
+.detail-table-wrap{max-height:300px;overflow-y:auto;border-radius:var(--radius);border:1px solid var(--border)}
+.detail-table{font-size:12px}.detail-table th{font-size:10px;padding:7px 10px}.detail-table td{padding:6px 10px}
+.route-cell{font-size:11px;color:var(--text-muted)}
+.route-cell .arrow{color:var(--blue);margin:0 3px}
+/* CHARTS */
+.chart-card{background:white;border-radius:var(--radius);box-shadow:var(--shadow);
+  border:1px solid var(--border);padding:20px;margin-bottom:20px}
+.chart-card h3{font-size:13px;font-weight:700;margin-bottom:12px;color:var(--text)}
+.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.chart-header h3{margin-bottom:0}
+.chart-toggles{display:flex;gap:4px;flex-wrap:wrap}
+.ct-btn{padding:3px 10px;font-size:11px;font-weight:600;border:1px solid var(--border-strong);
+  border-radius:4px;background:white;color:var(--text-muted);cursor:pointer;font-family:var(--font);transition:.15s}
+.ct-btn:hover{border-color:var(--blue);color:var(--blue)}
+.ct-btn.active{background:var(--blue);color:white;border-color:var(--blue)}
+/* INSTELLINGEN */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:900px){.settings-grid{grid-template-columns:1fr}}
+.settings-card{background:white;border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--border);padding:24px}
+.settings-card h2{font-size:14px;font-weight:700;margin-bottom:16px}
+.thr-row{display:flex;align-items:center;gap:10px;margin-bottom:13px}
+.thr-label{font-size:13px;color:var(--text);flex:1}
+.thr-input{width:72px;border:1px solid var(--border-strong);border-radius:var(--radius);
+  padding:5px 8px;font-size:13px;font-family:var(--mono);text-align:right;outline:none}
+.thr-input:focus{border-color:var(--blue)}
+.thr-unit{font-size:12px;color:var(--text-muted);width:18px}
+.save-btn{background:var(--blue);color:white;border:none;padding:7px 18px;
+  border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)}
+.save-btn:hover{background:var(--blue-dark)}
+.saved-ok{font-size:12px;color:var(--green);margin-left:10px;opacity:0;transition:opacity .3s}
+.saved-ok.show{opacity:1}
+.code-block{background:var(--bg);border-radius:4px;padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--text-muted);margin:6px 0}
+.form-hint{font-size:11px;color:var(--text-light);margin:6px 0 14px}
+.alert{border-radius:var(--radius);padding:10px 14px;font-size:12px;margin-bottom:14px}
+.alert-info{background:var(--blue-light);color:var(--blue);border:1px solid var(--blue-mid)}
+.settings-divider{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--text-muted);border-bottom:1px solid var(--border);padding-bottom:6px;margin:18px 0 14px}
+/* FAQ */
+.faq-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:900px){.faq-grid{grid-template-columns:1fr}}
+.faq-section{background:white;border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--border);padding:24px}
+.faq-section.fw{grid-column:1/-1}
+.faq-section h2{font-size:14px;font-weight:700;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--blue)}
+.faq-item{margin-bottom:18px}
+.faq-q{font-size:13px;font-weight:600;display:flex;gap:8px;margin-bottom:5px}
+.faq-q::before{content:'V';min-width:18px;height:18px;background:var(--blue);color:white;
+  border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0;margin-top:2px}
+.faq-a{font-size:13px;color:var(--text-muted);line-height:1.65;padding-left:26px}
+.step-list{padding-left:26px}.step-list li{font-size:13px;color:var(--text-muted);line-height:1.7}
+/* FULL-PAGE DROP OVERLAY */
+#drop-overlay{position:fixed;inset:0;background:rgba(27,108,178,.92);z-index:9999;
+  display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;
+  pointer-events:none}
+#drop-overlay.active{display:flex}
+#drop-overlay svg{color:white;opacity:.9}
+#drop-overlay h2{color:white;font-size:24px;font-weight:700}
+#drop-overlay p{color:rgba(255,255,255,.8);font-size:15px}
+#drop-zone-bar{display:flex;align-items:center;gap:8px;border:2px dashed rgba(255,255,255,.4);
+  border-radius:var(--radius);padding:5px 12px;font-size:12px;color:rgba(255,255,255,.8);
+  cursor:pointer;transition:.2s;white-space:nowrap}
+#drop-zone-bar:hover{border-color:white;color:white;background:rgba(255,255,255,.1)}
+@media print{header,#filter-bar,#tabs-nav,#upload-section,.agent-detail-row,#drop-overlay{display:none!important}
+  .tab-panel{display:block!important;padding:0;break-after:page}body{background:white}}
+</style>
+</head>
+<body>
+
+<!-- FULL-PAGE DROP OVERLAY -->
+<div id="drop-overlay">
+  <svg width="64" height="64" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+  </svg>
+  <h2>Laat los om te laden</h2>
+  <p>Interactie-export én agentsamenvatting worden automatisch herkend</p>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">FABORY</div>
+  <div class="logo-sep"></div>
+  <h1>Telefonie Dashboard — Inside Sales</h1>
+  <div class="hdr-right">
+    <span id="data-badge">Geen data geladen</span>
+    <div id="drop-zone-bar" onclick="document.getElementById('file-input').click()" title="Klik of sleep een CSV-bestand hierheen">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+      </svg>
+      + CSV laden of slepen
+    </div>
+    <button class="btn btn-ghost" id="btn-clear" onclick="clearStorage()" style="display:none" title="Verwijder opgeslagen data">🗑</button>
+    <button class="btn btn-ghost" id="btn-sp-connect" onclick="spConnect()" title="Verbinden met SharePoint">🔗 SharePoint</button>
+    <span id="sp-status" style="display:none;font-size:11px;font-family:var(--mono);padding:3px 8px;border-radius:10px;background:rgba(26,138,74,.2);color:#6ee7a0;border:1px solid rgba(26,138,74,.3)">● Verbonden</span>
+    <button class="btn btn-white" id="btn-sp-load" onclick="spLoadData()" style="display:none">↓ Laad uit SharePoint</button>
+    <button class="btn btn-white" id="btn-print" onclick="window.print()" style="display:none">🖨️ Afdrukken</button>
+    <button class="btn btn-white" id="btn-excel" onclick="exportExcel()" style="display:none">📥 Excel</button>
+  </div>
+</header>
+
+<!-- UPLOAD -->
+<div id="upload-section">
+  <div id="storage-banner" style="display:none" class="storage-banner">
+    💾 Vorige dataset hersteld uit lokale opslag. Sleep een nieuw bestand om te vervangen.
+  </div>
+  <div id="upload-zone" onclick="document.getElementById('file-input').click()">
+    <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <h2>Sleep een Genesys CSV-export hierheen</h2>
+    <p>Interactie-export én agent-samenvatting worden automatisch herkend</p>
+    <button class="btn" style="background:var(--blue);color:white;padding:8px 20px;font-size:13px"
+      onclick="event.stopPropagation();document.getElementById('file-input').click()">Bestand kiezen</button>
+    <small>Genesys PureCloud (.csv) — meerdere bestanden tegelijk mogelijk</small>
+  </div>
+  <div id="loaded-files"></div>
+  <div id="upload-error"></div>
+  <input type="file" id="file-input" accept=".csv" multiple>
+</div>
+
+<!-- FILTER BAR -->
+<div id="filter-bar" class="hidden">
+  <span class="filter-label">Periode</span>
+  <div class="toggle-group">
+    <button class="toggle-btn active" id="mode-week" onclick="setPeriodMode('week')">Week</button>
+    <button class="toggle-btn" id="mode-maand" onclick="setPeriodMode('maand')">Maand</button>
+    <button class="toggle-btn" id="mode-alles" onclick="setPeriodMode('alles')">Alles</button>
+  </div>
+  <div class="period-nav" id="period-nav">
+    <button class="period-arrow" id="period-prev" onclick="navigatePeriod(-1)">&#8592;</button>
+    <span id="period-label">—</span>
+    <button class="period-arrow" id="period-next" onclick="navigatePeriod(1)">&#8594;</button>
+  </div>
+  <span class="filter-label" style="margin-left:6px">Wachtrij</span>
+  <div class="ms-wrap">
+    <div class="ms-btn" id="ms-queue-btn" onclick="toggleMS('queue')">
+      <span id="ms-queue-label">Alle wachtrijen</span><span class="ms-caret">▼</span>
+    </div>
+    <div class="ms-menu" id="ms-queue-menu">
+      <div class="ms-search"><input type="text" placeholder="Zoeken…" oninput="filterMSItems('queue',this.value)"></div>
+      <div id="ms-queue-items"></div>
+    </div>
+  </div>
+  <span class="filter-label">Medewerker</span>
+  <div class="ms-wrap">
+    <div class="ms-btn" id="ms-agent-btn" onclick="toggleMS('agent')">
+      <span id="ms-agent-label">Alle medewerkers</span><span class="ms-caret">▼</span>
+    </div>
+    <div class="ms-menu" id="ms-agent-menu">
+      <div class="ms-search"><input type="text" placeholder="Zoeken…" oninput="filterMSItems('agent',this.value)"></div>
+      <div id="ms-agent-items"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div id="tabs-nav" class="hidden">
+  <button class="tab-btn active" onclick="showTab(1)">📊 Overzicht</button>
+  <button class="tab-btn" onclick="showTab(2)">📞 Interacties</button>
+  <button class="tab-btn" onclick="showTab(3)">👤 Medewerkers</button>
+  <button class="tab-btn" onclick="showTab(4)">⚙️ Instellingen</button>
+  <button class="tab-btn" onclick="showTab(5)">❓ FAQ & Help</button>
+</div>
+
+<!-- TAB 1: OVERZICHT -->
+<div class="tab-panel active" id="tab-1">
+  <div class="kpi-row" id="kpi-row-1"></div>
+  <div class="kpi-row" id="kpi-row-2" style="margin-bottom:24px"></div>
+  <div class="sec-hdr"><h2>Per wachtrij</h2><div class="sec-line"></div></div>
+  <div class="table-wrap"><table id="queue-table">
+    <thead><tr>
+      <th onclick="sortTbl('queue-table',0,'s')">Wachtrij</th>
+      <th class="num" onclick="sortTbl('queue-table',1,'n')">Totaal</th>
+      <th class="num" onclick="sortTbl('queue-table',2,'n')">Inkomend</th>
+      <th class="num" onclick="sortTbl('queue-table',3,'n')">Uitgaand</th>
+      <th class="num" onclick="sortTbl('queue-table',4,'n')">Gemist</th>
+      <th class="num" onclick="sortTbl('queue-table',5,'n')">Beantwoord%</th>
+      <th class="num" onclick="sortTbl('queue-table',6,'t')">Gem. duur</th>
+      <th class="num" onclick="sortTbl('queue-table',7,'n')">Doorverbonden%</th>
+      <th>Volume</th>
+    </tr></thead>
+    <tbody id="queue-tbody"></tbody>
+  </table></div>
+</div>
+
+<!-- TAB 2: INTERACTIES -->
+<div class="tab-panel" id="tab-2">
+  <div class="chart-card">
+    <div class="chart-header">
+      <h3>Beldruk per uur — inkomende gesprekken</h3>
+      <div class="chart-toggles" id="hourly-toggles">
+        <button class="ct-btn active" data-day="avg" onclick="toggleHourlyDay('avg',this)">Gemiddelde</button>
+        <button class="ct-btn" data-day="1" onclick="toggleHourlyDay('1',this)">Ma</button>
+        <button class="ct-btn" data-day="2" onclick="toggleHourlyDay('2',this)">Di</button>
+        <button class="ct-btn" data-day="3" onclick="toggleHourlyDay('3',this)">Wo</button>
+        <button class="ct-btn" data-day="4" onclick="toggleHourlyDay('4',this)">Do</button>
+        <button class="ct-btn" data-day="5" onclick="toggleHourlyDay('5',this)">Vr</button>
+      </div>
+    </div>
+    <canvas id="chart-hourly" height="70"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header">
+      <h3>Gesprekken</h3>
+      <div class="chart-toggles">
+        <button class="ct-btn active" data-dm="dag" onclick="setDailyMode('dag',this)">Per dag (uren)</button>
+        <button class="ct-btn" data-dm="week" onclick="setDailyMode('week',this)">Per week (dagen)</button>
+        <button class="ct-btn" data-dm="maand" onclick="setDailyMode('maand',this)">Per maand (weken)</button>
+      </div>
+    </div>
+    <canvas id="chart-daily" height="70"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Gespreksredenen (top 15)</h3>
+    <canvas id="chart-reasons" height="60"></canvas>
+  </div>
+</div>
+
+<!-- TAB 3: MEDEWERKERS -->
+<div class="tab-panel" id="tab-3">
+  <div class="sub-tabs">
+    <button class="sub-tab-btn active" onclick="showSubTab('activiteit',this)">📋 Activiteit</button>
+    <button class="sub-tab-btn" onclick="showSubTab('performance',this)" id="perf-tab-btn">📈 Performance <span id="perf-badge" style="display:none;background:var(--green-pale);color:var(--green);font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px">nieuw</span></button>
+  </div>
+
+  <!-- ACTIVITEIT -->
+  <div class="sub-panel active" id="sub-activiteit">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <span class="filter-label" style="color:var(--text-muted)">Team</span>
+      <div class="toggle-group" id="team-filter-group">
+        <button class="toggle-btn active" onclick="setTeamFilter('',this)">Alle teams</button>
+        <button class="toggle-btn" onclick="setTeamFilter('NL SALES NOORDOOST',this)">Noordoost</button>
+        <button class="toggle-btn" onclick="setTeamFilter('NL SALES WEST',this)">West</button>
+        <button class="toggle-btn" onclick="setTeamFilter('NL SALES ZUID',this)">Zuid</button>
+        <button class="toggle-btn" onclick="setTeamFilter('NL INS KAM',this)">INS KAM</button>
+        <button class="toggle-btn" onclick="setTeamFilter('NL TRADE',this)">Trade</button>
+        <button class="toggle-btn" onclick="setTeamFilter('AM SME',this)">AM SME</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table id="agent-table">
+      <thead><tr>
+        <th onclick="sortTbl('agent-table',0,'s')">Medewerker</th>
+        <th onclick="sortTbl('agent-table',1,'s')">Team</th>
+        <th class="num" onclick="sortTbl('agent-table',2,'n')">Totaal</th>
+        <th class="num" onclick="sortTbl('agent-table',3,'n')">Inkomend</th>
+        <th class="num" onclick="sortTbl('agent-table',4,'n')">Uitgaand</th>
+        <th class="num" onclick="sortTbl('agent-table',5,'t')">Gem. duur</th>
+        <th class="num" onclick="sortTbl('agent-table',6,'n')">Doorverbonden%</th>
+        <th class="num" onclick="sortTbl('agent-table',7,'n')">Intern</th>
+      </tr></thead>
+      <tbody id="agent-tbody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- PERFORMANCE -->
+  <div class="sub-panel" id="sub-performance">
+    <div id="perf-no-data" style="text-align:center;padding:48px;color:var(--text-muted)">
+      <div style="font-size:32px;margin-bottom:12px">📂</div>
+      <strong>Geen agentsamenvatting geladen</strong>
+      <p style="font-size:13px;margin-top:8px">Sleep een Genesys <em>Samenvatting agentperformance</em> CSV in de tool.<br>Dit is een apart exporttype van Genesys PureCloud.</p>
+    </div>
+    <div id="perf-content" style="display:none">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <span class="filter-label" style="color:var(--text-muted)">Team</span>
+        <div class="toggle-group" id="perf-team-group">
+          <button class="toggle-btn active" onclick="setPerfTeamFilter('',this)">Alle teams</button>
+          <button class="toggle-btn" onclick="setPerfTeamFilter('NL SALES NOORDOOST',this)">Noordoost</button>
+          <button class="toggle-btn" onclick="setPerfTeamFilter('NL SALES WEST',this)">West</button>
+          <button class="toggle-btn" onclick="setPerfTeamFilter('NL SALES ZUID',this)">Zuid</button>
+          <button class="toggle-btn" onclick="setPerfTeamFilter('NL INS KAM',this)">INS KAM</button>
+          <button class="toggle-btn" onclick="setPerfTeamFilter('NL TRADE',this)">Trade</button>
+          <button class="toggle-btn" onclick="setPerfTeamFilter('AM SME',this)">AM SME</button>
+        </div>
+        <span id="perf-period-label" style="font-size:12px;color:var(--text-muted);margin-left:8px"></span>
+      </div>
+      <div class="table-wrap"><table id="perf-table">
+        <thead><tr>
+          <th onclick="sortTbl('perf-table',0,'s')">Medewerker</th>
+          <th onclick="sortTbl('perf-table',1,'s')">Team</th>
+          <th class="num" onclick="sortTbl('perf-table',2,'n')">Verwerkt</th>
+          <th class="num" onclick="sortTbl('perf-table',3,'n')">Beantwoord</th>
+          <th class="num" onclick="sortTbl('perf-table',4,'t')">Gem. gesprekstijd</th>
+          <th class="num" onclick="sortTbl('perf-table',5,'t')">Gem. verwerking</th>
+          <th class="num" onclick="sortTbl('perf-table',6,'n')">Wachtstand%</th>
+          <th class="num" onclick="sortTbl('perf-table',7,'n')">Doorverbonden%</th>
+          <th onclick="sortTbl('perf-table',8,'t')">↕ vs. team</th>
+        </tr></thead>
+        <tbody id="perf-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 4: INSTELLINGEN -->
+<div class="tab-panel" id="tab-4">
+  <div class="settings-grid">
+    <div class="settings-card">
+      <h2>🎯 KPI Drempelwaarden — Overzicht</h2>
+      <div class="thr-row"><span class="thr-label">Beantwoord% — groen boven</span><input type="number" class="thr-input" id="thr-good-pct" value="90" min="0" max="100"><span class="thr-unit">%</span></div>
+      <div class="thr-row"><span class="thr-label">Beantwoord% — oranje boven</span><input type="number" class="thr-input" id="thr-warn-pct" value="80" min="0" max="100"><span class="thr-unit">%</span></div>
+      <div class="thr-row"><span class="thr-label">Gem. gespreksduur — oranje boven</span><input type="number" class="thr-input" id="thr-dur-warn" value="300" min="0"><span class="thr-unit">s</span></div>
+      <div class="thr-row"><span class="thr-label">Gem. gespreksduur — rood boven</span><input type="number" class="thr-input" id="thr-dur-red" value="480" min="0"><span class="thr-unit">s</span></div>
+      <div class="thr-row"><span class="thr-label">Gemist% — rood boven</span><input type="number" class="thr-input" id="thr-miss-red" value="15" min="0" max="100"><span class="thr-unit">%</span></div>
+      <div class="settings-divider">Performance — Gesprekstijd</div>
+      <div class="thr-row"><span class="thr-label">Gem. gesprekstijd — oranje boven</span><input type="number" class="thr-input" id="thr-perf-spk-warn" value="240" min="0"><span class="thr-unit">s</span></div>
+      <div class="thr-row"><span class="thr-label">Gem. gesprekstijd — rood boven</span><input type="number" class="thr-input" id="thr-perf-spk-red" value="360" min="0"><span class="thr-unit">s</span></div>
+      <div class="settings-divider">Performance — Wachtstand</div>
+      <div class="thr-row"><span class="thr-label">Wachtstand% — oranje boven</span><input type="number" class="thr-input" id="thr-perf-hold-warn" value="5" min="0" max="100"><span class="thr-unit">%</span></div>
+      <div class="thr-row"><span class="thr-label">Wachtstand% — rood boven</span><input type="number" class="thr-input" id="thr-perf-hold-red" value="15" min="0" max="100"><span class="thr-unit">%</span></div>
+      <button class="save-btn" onclick="saveSettings()">Opslaan</button>
+      <span class="saved-ok" id="saved-msg">✓ Opgeslagen</span>
+    </div>
+    <div class="settings-card">
+      <h2>ℹ️ Over deze tool</h2>
+      <div class="alert alert-info"><strong>Versie 1.4</strong> — Fabory Inside Sales Telefonie Dashboard</div>
+      <p style="font-size:12px;font-weight:700;margin:12px 0 4px">Data persistentie</p>
+      <div class="code-block">Data wordt automatisch opgeslagen in localStorage.<br>Na vernieuwen wordt de laatste dataset hersteld.</div>
+      <p style="font-size:12px;font-weight:700;margin:12px 0 4px">CSV-types automatisch herkend</p>
+      <div class="code-block">Interactie-export → kolom "Gebruikers" aanwezig<br>Agentsamenvatting → kolom "Naam agent" aanwezig</div>
+      <p style="font-size:12px;font-weight:700;margin:12px 0 4px">Performance ↕ vs. team</p>
+      <div class="code-block">Groen = korter dan teamgemiddelde<br>Rood = langer dan teamgemiddelde</div>
+    </div>
+  </div>
+
+  <!-- SharePoint koppeling — aparte kaart eronder, volle breedte -->
+  <div class="settings-card" style="margin-top:20px">
+    <h2>🔗 SharePoint Koppeling — Fase 2</h2>
+    <div class="alert alert-info" style="margin-bottom:16px">
+      Vereist een Azure App Registration in de Fabory-tenant met <strong>Files.Read.All</strong> en <strong>Sites.Read.All</strong> rechten.
+      Redirect URI instellen op <code>http://localhost</code> (type: Single-Page Application).
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 24px">
+      <div>
+        <label class="form-label" style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px">Azure App Client ID</label>
+        <input type="text" class="thr-input" id="sp-client-id" style="width:100%;font-family:var(--mono);font-size:11px" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        <div class="form-hint">Azure Portal → App registrations → Jouw app → Application (client) ID</div>
+      </div>
+      <div>
+        <label class="form-label" style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px">Tenant ID</label>
+        <input type="text" class="thr-input" id="sp-tenant-id" style="width:100%;font-family:var(--mono);font-size:11px" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        <div class="form-hint">Azure Portal → Azure Active Directory → Tenant ID</div>
+      </div>
+      <div>
+        <label class="form-label" style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px">SharePoint Site ID</label>
+        <input type="text" class="thr-input" id="sp-site-id" style="width:100%;font-family:var(--mono);font-size:11px" placeholder="fabory.sharepoint.com,site-id,drive-id">
+        <div class="form-hint">N8N variabele SHAREPOINT_SITE_ID</div>
+      </div>
+      <div>
+        <label class="form-label" style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px">SharePoint Drive ID</label>
+        <input type="text" class="thr-input" id="sp-drive-id" style="width:100%;font-family:var(--mono);font-size:11px" placeholder="b!xxxxxxxxxxxxxxxxxxxx">
+        <div class="form-hint">N8N variabele SHAREPOINT_DRIVE_ID</div>
+      </div>
+      <div>
+        <label class="form-label" style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px">Mappad in SharePoint</label>
+        <input type="text" class="thr-input" id="sp-folder-path" style="width:100%;font-family:var(--mono);font-size:11px" value="Telefonie">
+        <div class="form-hint">Map waar N8N de JSON-bestanden naartoe schrijft</div>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:8px">
+        <button class="save-btn" onclick="saveSpSettings()">💾 Opslaan</button>
+        <button class="save-btn" style="background:var(--green)" onclick="spConnect()">🔗 Verbinding testen</button>
+        <span class="saved-ok" id="sp-saved-msg">✓ Opgeslagen</span>
+      </div>
+    </div>
+    <div id="sp-files-preview" style="display:none;margin-top:16px">
+      <div class="settings-divider">Beschikbare bestanden in SharePoint</div>
+      <div id="sp-files-list" style="font-size:12px;font-family:var(--mono);color:var(--text-muted)"></div>
+    </div>
+    <div id="sp-error" style="display:none;margin-top:12px;font-size:12px;color:var(--red);background:var(--red-pale);padding:8px 12px;border-radius:var(--radius)"></div>
+  </div>
+
+<!-- TAB 5: FAQ -->
+<div class="tab-panel" id="tab-5">
+  <div class="faq-grid">
+    <div class="faq-section">
+      <h2>🚀 Aan de slag</h2>
+      <div class="faq-item">
+        <div class="faq-q">Welke CSV-bestanden kan ik laden?</div>
+        <div class="faq-a">Twee types: <strong>Interactie-export</strong> (Prestaties → Interacties → Exporteren) en <strong>Samenvatting agentperformance</strong> (Prestaties → Agenten → Exporteren). Beide worden automatisch herkend.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Blijft mijn data bewaard na vernieuwen?</div>
+        <div class="faq-a">Ja. De tool slaat de data op in localStorage. Na vernieuwen wordt de laatste dataset automatisch hersteld. Klik op het 🗑-icoontje om de opgeslagen data te wissen.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Wat toont het Performance-tabblad?</div>
+        <div class="faq-a">Tijdmetingen per agent (gesprekstijd, verwerking, wachtstand%) op basis van de agentsamenvatting-CSV, inclusief vergelijking met het teamgemiddelde.</div>
+      </div>
+    </div>
+    <div class="faq-section">
+      <h2>❓ Veelgestelde vragen</h2>
+      <div class="faq-item">
+        <div class="faq-q">Wat is het verschil tussen Gesprekstijd en Verwerking?</div>
+        <div class="faq-a"><strong>Gesprekstijd</strong> = pure spreektijd. <strong>Verwerking</strong> = gesprekstijd + wachtstand + ACW. Een hoge verwerking bij lage gesprekstijd kan wijzen op veel wachtstand of lange ACW.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Wat betekent de ↕ vs. team kolom?</div>
+        <div class="faq-a">Afwijking van de gem. gesprekstijd t.o.v. het teamgemiddelde. Groen = korter dan gemiddeld, Rood = langer. Dit helpt bij het snel signaleren van uitschieters.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Worden gegevens gedeeld of opgestuurd?</div>
+        <div class="faq-a">Nee. Alles draait lokaal in de browser. localStorage is alleen beschikbaar op dit apparaat.</div>
+      </div>
+    </div>
+    <div class="faq-section fw">
+      <h2>🔧 Wat doe je als het niet werkt?</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <div><p style="font-size:13px;font-weight:700;margin-bottom:10px">CSV laadt niet</p>
+          <ol class="step-list"><li>Controleer: moet <strong>.csv</strong> zijn.</li>
+          <li>Genesys: "Volledige export" aanstaan.</li>
+          <li>Nederlandstalige interface vereist.</li>
+          <li>Probeer één bestand tegelijk.</li></ol></div>
+        <div><p style="font-size:13px;font-weight:700;margin-bottom:10px">Data verdwenen na refresh</p>
+          <ol class="step-list"><li>Controleer: is localStorage ingeschakeld in de browser?</li>
+          <li>Incognito-modus slaat geen localStorage op.</li>
+          <li>Herlaad het bestand via drag & drop.</li>
+          <li>Meld bij Dennis als het structureel fout gaat.</li></ol></div>
+        <div><p style="font-size:13px;font-weight:700;margin-bottom:10px">Tool werkt niet</p>
+          <ol class="step-list"><li><strong>Ctrl+F5</strong> — harde refresh.</li>
+          <li>Chrome of Edge (versie 90+).</li>
+          <li>Internetverbinding bij eerste openen.</li>
+          <li>Screenshot naar <strong>Dennis Groothuizen</strong>.</li></ol></div>
+        <div><p style="font-size:13px;font-weight:700;margin-bottom:10px">Kolommen veranderd</p>
+          <ol class="step-list"><li>Eerste regel moet beginnen met <code>Volledige export voltooid</code>.</li>
+          <li>Engelstalige kolommen? NL-interface gebruiken.</li>
+          <li>Structurele wijziging? Meld bij Dennis.</li></ol></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══ CONSTANTS ════════════════════════════════════════════════════════════════
+const DAYS_FULL=['Zondag','Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag'];
+const DAY_COLORS={'avg':'#1B6CB2',1:'#1A8A4A',2:'#B45309',3:'#7C3AED',4:'#D93025',5:'#0891B2'};
+const STOR_RECORDS='fabory-tel-records-v2';
+const STOR_PERF='fabory-tel-perf-v1';
+const STOR_FILES='fabory-tel-files-v2';
+const STOR_SETTINGS='fabory-tel-settings-v2';
+
+const TEAM_MAP={
+  'Wesley Kooistra':'NL SALES NOORDOOST','Aline de Kruijff':'NL SALES NOORDOOST',
+  'Robert Kuitert':'NL SALES NOORDOOST','Mark de Haas':'NL SALES NOORDOOST',
+  'Marcel Jongman':'NL SALES NOORDOOST','Ron Klaver':'NL SALES NOORDOOST',
+  'David van Tol':'NL SALES NOORDOOST','Maarten Burger':'NL SALES NOORDOOST',
+  'Henk Keurentjes':'NL SALES NOORDOOST','Bas van der Vegte':'NL SALES NOORDOOST',
+  'Rene Jansen':'NL SALES NOORDOOST','Pascal van Ginkel':'NL SALES NOORDOOST',
+  'Quentin Smakman':'NL SALES WEST','Sebastiaan van Waart':'NL SALES WEST',
+  'Xavier Rosalia':'NL SALES WEST','Anass Laamraoui':'NL SALES WEST',
+  'Peter van der Lely':'NL SALES WEST','Arnout Jongejan':'NL SALES WEST',
+  'Bastiaan Anne':'NL SALES WEST','Robbert Alblas':'NL SALES WEST',
+  'Mirjam van der Heiden':'NL SALES WEST','Jolanda van der Plas':'NL SALES WEST',
+  'Leo de Koning':'NL SALES WEST','Jorrit van der Wiel':'NL SALES WEST',
+  'Jorn Koehoorn':'NL SALES ZUID','Xavier Brinkman':'NL SALES ZUID',
+  'Robin Roodnat':'NL SALES ZUID','Jos Bidlot':'NL SALES ZUID',
+  'Karel van Elderen':'NL SALES ZUID','Rolf van Geel':'NL SALES ZUID',
+  'Paul Kroon':'NL SALES ZUID','Sophia van der Putten':'NL SALES ZUID',
+  'Phaedra Ponson':'NL SALES ZUID','Jeremy Boom':'NL SALES ZUID',
+  'Astrid Stulemeijer':'NL SALES ZUID','Josefine Wijnhoven':'NL SALES ZUID',
+  'Peggy Floris':'NL SALES ZUID','Bas Bastiaanssen':'NL SALES ZUID',
+  'Yehudi Varenhout':'NL SALES ZUID','Jaap Bartels':'NL SALES ZUID',
+  'Paul Konijnenburg':'NL INS KAM','Henny Morselt':'NL INS KAM',
+  'Felice Hulsman':'NL INS KAM','Rick van Boxtel':'NL INS KAM',
+  'Rosalie Kerkhoff':'NL INS KAM','Claudia van Houtum':'NL INS KAM',
+  'Iris Verstappen':'NL INS KAM','Linda de Mol':'NL INS KAM',
+  'Tom Sluijter':'NL INS KAM','Noud van Rijswijk':'NL INS KAM',
+  'Patrick Meijers':'NL TRADE',
+  'Albert Hut':'AM SME','Linda van Pelt':'AM SME','Leon van Bijsterveldt':'AM SME',
+  'Joost Baaten':'AM SME','Maurits de Graaff':'AM SME','Marc Ketting':'AM SME',
+  'Dennis Groothuizen':'Supervisors',
+};
+function getTeam(n){return TEAM_MAP[n]||'Overig';}
+
+// ═══ STATE ════════════════════════════════════════════════════════════════════
+let allRecords=[],filteredRecords=[],perfRecords=[],loadedFileNames=[];
+let charts={},settings={};
+let periodMode='week',periodIndex=0,periodList=[];
+let hourlyVisible=new Set(['avg']);
+let dailyMode='dag';
+let activeTeamFilter='',activePerfTeamFilter='';
+
+// ═══ INIT ═════════════════════════════════════════════════════════════════════
+function init(){
+  loadSettings();
+  setupUpload();
+  document.addEventListener('click',e=>{if(!e.target.closest('.ms-wrap'))closeAllMS();});
+  // Probeer data te herstellen uit localStorage
+  tryRestoreFromStorage();
+  if(!allRecords.length) showTab(5);
+}
+
+// ═══ LOCALSTORAGE ═════════════════════════════════════════════════════════════
+function saveToStorage(){
+  try{
+    localStorage.setItem(STOR_RECORDS, JSON.stringify(allRecords));
+    localStorage.setItem(STOR_PERF, JSON.stringify(perfRecords));
+    localStorage.setItem(STOR_FILES, JSON.stringify(loadedFileNames));
+  }catch(e){
+    console.warn('localStorage vol of niet beschikbaar:',e);
+    document.getElementById('upload-error').textContent=
+      '⚠️ Data kon niet worden opgeslagen (localStorage vol). De data is wel geladen maar verdwijnt na vernieuwen.';
+  }
+}
+function tryRestoreFromStorage(){
+  try{
+    const rStr=localStorage.getItem(STOR_RECORDS);
+    const pStr=localStorage.getItem(STOR_PERF);
+    const fStr=localStorage.getItem(STOR_FILES);
+    if(!rStr) return;
+    const recs=JSON.parse(rStr);
+    if(!recs||!recs.length) return;
+    // Herstel Date objecten
+    recs.forEach(r=>{ r.datum=new Date(r.datumStr+'T'+(r.tijdStr||'00:00')+':00'); });
+    allRecords=recs;
+    if(pStr) perfRecords=JSON.parse(pStr)||[];
+    if(fStr) loadedFileNames=JSON.parse(fStr)||[];
+    document.getElementById('storage-banner').style.display='flex';
+    buildPeriodList();
+    setupMultiSelect();
+    applyFilters();
+    showDashboard();
+    if(perfRecords.length) showPerfData();
+  }catch(e){
+    console.warn('Herstel uit localStorage mislukt:',e);
+    localStorage.removeItem(STOR_RECORDS);
+    localStorage.removeItem(STOR_PERF);
+    localStorage.removeItem(STOR_FILES);
+  }
+}
+function clearStorage(){
+  if(!confirm('Weet je zeker dat je de opgeslagen data wilt wissen?')) return;
+  localStorage.removeItem(STOR_RECORDS);
+  localStorage.removeItem(STOR_PERF);
+  localStorage.removeItem(STOR_FILES);
+  location.reload();
+}
+
+// ═══ SETTINGS ════════════════════════════════════════════════════════════════
+function loadSettings(){
+  const s=localStorage.getItem(STOR_SETTINGS);
+  settings=s?JSON.parse(s):{
+    goodPct:90,warnPct:80,durWarn:300,durRed:480,missRed:15,
+    perfSpkWarn:240,perfSpkRed:360,perfHoldWarn:5,perfHoldRed:15
+  };
+  document.getElementById('thr-good-pct').value=settings.goodPct;
+  document.getElementById('thr-warn-pct').value=settings.warnPct;
+  document.getElementById('thr-dur-warn').value=settings.durWarn;
+  document.getElementById('thr-dur-red').value=settings.durRed;
+  document.getElementById('thr-miss-red').value=settings.missRed;
+  document.getElementById('thr-perf-spk-warn').value=settings.perfSpkWarn||240;
+  document.getElementById('thr-perf-spk-red').value=settings.perfSpkRed||360;
+  document.getElementById('thr-perf-hold-warn').value=settings.perfHoldWarn||5;
+  document.getElementById('thr-perf-hold-red').value=settings.perfHoldRed||15;
+}
+function saveSettings(){
+  settings={
+    goodPct:+document.getElementById('thr-good-pct').value,
+    warnPct:+document.getElementById('thr-warn-pct').value,
+    durWarn:+document.getElementById('thr-dur-warn').value,
+    durRed:+document.getElementById('thr-dur-red').value,
+    missRed:+document.getElementById('thr-miss-red').value,
+    perfSpkWarn:+document.getElementById('thr-perf-spk-warn').value,
+    perfSpkRed:+document.getElementById('thr-perf-spk-red').value,
+    perfHoldWarn:+document.getElementById('thr-perf-hold-warn').value,
+    perfHoldRed:+document.getElementById('thr-perf-hold-red').value,
+  };
+  localStorage.setItem(STOR_SETTINGS,JSON.stringify(settings));
+  const msg=document.getElementById('saved-msg');
+  msg.classList.add('show'); setTimeout(()=>msg.classList.remove('show'),2000);
+  if(filteredRecords.length) renderAll();
+  if(perfRecords.length) renderPerfTable();
+}
+
+// ═══ CSV TYPE DETECTIE ════════════════════════════════════════════════════════
+function detectCSVType(header){
+  if(header.includes('Naam agent')&&header.includes('Gem. verwerking')) return 'performance';
+  if(header.includes('Gebruikers')&&header.includes('Wachtrij')) return 'interactie';
+  return 'onbekend';
+}
+
+// ═══ CSV PARSING — INTERACTIE ═════════════════════════════════════════════════
+function parseCSVLine(line){
+  const cells=[];let cur='',inQ=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
+    else if(c===','&&!inQ){cells.push(cur);cur='';}
+    else cur+=c;
+  }
+  cells.push(cur);return cells;
+}
+function parseGenesysLine(raw){
+  let line=raw.trim();if(!line)return null;
+  if(line.startsWith('"')){line=line.slice(1).replace(/[";\s]+$/,'').replace(/""/g,'"');}
+  return parseCSVLine(line);
+}
+function parseDate(s){
+  if(!s)return null;
+  const m=s.match(/(\d+)-(\d+)-(\d+)\s+(\d+):(\d+)/);
+  if(!m)return null;
+  return new Date(2000+parseInt(m[3]),parseInt(m[2])-1,parseInt(m[1]),parseInt(m[4]),parseInt(m[5]));
+}
+function isInternalRemote(r){
+  if(!r||!r.trim())return false;
+  if(/^[+\d\s\-()\/.]{6,}$/.test(r))return false;
+  if(/Netherlands|Germany|Belgium|France|Mobile Number|nederland/i.test(r))return false;
+  if(/,\s/.test(r)||/^\d/.test(r))return false;
+  return true;
+}
+function parseRecord(cells,colMap){
+  const g=k=>{const i=colMap[k];return i!==undefined?(cells[i]||'').trim():''};
+  if(g('Volledige export voltooid')!=='JA')return null;
+  const gR=g('Gebruikers');
+  const gebruikers=gR?gR.split(/;\s*|\t/).map(u=>u.trim()).filter(Boolean):[];
+  const wR=g('Wachtrij');
+  const wachtrijen=wR?wR.split(/;\s*|\t/).map(w=>w.trim()).filter(Boolean):[];
+  const aR=g('Afronding');
+  const afrondingen=aR?aR.split(/;\s*|\t/).map(a=>a.trim()).filter(a=>a&&!a.startsWith('ININ-')):[];
+  const remote=g('Remote'),richting=g('Richting');
+  const afgebrokenInWachtrij=g('Afgebroken in wachtrij').trim()!=='';
+  const blindDoor=g('Blind doorverbonden')==='JA';
+  const doorNaRug=g('Doorverbonden na ruggespraak')==='JA';
+  const aantalDoor=parseInt(g('Doorverbindingen'))||0;
+  const wachtrijPrimair=wachtrijen[0]||'';
+  const datum=parseDate(g('Datum'));if(!datum)return null;
+  const isIntern=wachtrijen.length===0&&isInternalRemote(remote);
+  const isGemist=afgebrokenInWachtrij&&richting.includes('Inkomend')&&!isIntern;
+  const isDoorverbonden=gebruikers.length>1||blindDoor||doorNaRug||aantalDoor>0;
+  return{
+    gebruikers,remote,datum,richting,wachtrijen,wachtrijPrimair,afrondingen,
+    duurMs:parseInt(g('Duur'))||0,gesprekMs:parseInt(g('Totaal gesprek'))||0,
+    wachttijdMs:parseInt(g('Totaal wachtrij'))||0,acwMs:parseInt(g('Totaal werk na gesprek'))||0,
+    isIntern,isGemist,isDoorverbonden,
+    uur:datum.getHours(),weekdag:datum.getDay(),
+    datumStr:datum.toISOString().split('T')[0],
+    tijdStr:datum.toTimeString().slice(0,5),
+  };
+}
+function parseInteractieCSV(text){
+  const lines=text.split('\n').filter(l=>l.trim());
+  let headerLine=null,headerIndex=-1;
+  for(let i=0;i<Math.min(5,lines.length);i++){
+    const c=parseGenesysLine(lines[i]);
+    if(c&&c.includes('Gebruikers')){headerLine=c;headerIndex=i;break;}
+  }
+  if(!headerLine)throw new Error('Kolomnamen niet gevonden. Is dit een Genesys interactie-export?');
+  const colMap={};headerLine.forEach((h,i)=>{colMap[h.trim()]=i;});
+  const records=[];
+  for(let i=headerIndex+1;i<lines.length;i++){
+    const c=parseGenesysLine(lines[i]);
+    if(!c||c.length<10)continue;
+    const r=parseRecord(c,colMap);
+    if(r)records.push(r);
+  }
+  return records;
+}
+
+// ═══ CSV PARSING — AGENTSAMENVATTING ══════════════════════════════════════════
+function parsePerformanceCSV(text){
+  const lines=text.split('\n').filter(l=>l.trim());
+  let headerLine=null,headerIndex=-1;
+  for(let i=0;i<Math.min(5,lines.length);i++){
+    const c=parseGenesysLine(lines[i]);
+    if(c&&c.includes('Naam agent')){headerLine=c;headerIndex=i;break;}
+  }
+  if(!headerLine)throw new Error('Geen "Naam agent" kolom gevonden.');
+  const colMap={};headerLine.forEach((h,i)=>{colMap[h.trim()]=i;});
+  const g=(cells,k)=>{const i=colMap[k];return i!==undefined?(cells[i]||'').trim():''};
+  const records=[];
+  for(let i=headerIndex+1;i<lines.length;i++){
+    const c=parseGenesysLine(lines[i]);
+    if(!c||c.length<7)continue;
+    const naam=g(c,'Naam agent');
+    if(!naam)continue;
+    const verwerking=parseInt(g(c,'Verwerking'))||0;
+    records.push({
+      naam,
+      beantwoord:parseInt(g(c,'Beantwoord'))||0,
+      verwerking,
+      gemVerwMs:parseFloat(g(c,'Gem. verwerking'))||0,
+      gemGespMs:parseFloat(g(c,'Gem. gesprekstijd'))||0,
+      gemWachtstandMs:parseFloat(g(c,'Gem. in wachtst.'))||0,
+      gemAcwMs:parseFloat(g(c,'Gem. ACW'))||0,
+      inWachtstand:parseInt(g(c,'In wachtstand'))||0,
+      doorverbonden:parseInt(g(c,'Doorverbonden'))||0,
+      beginInterval:g(c,'Begin interval'),
+      eindeInterval:g(c,'Einde interval'),
+    });
+  }
+  return records;
+}
+
+// ═══ UPLOAD ═══════════════════════════════════════════════════════════════════
+function setupUpload(){
+  const zone=document.getElementById('upload-zone'),inp=document.getElementById('file-input');
+  const overlay=document.getElementById('drop-overlay');
+  let dragCounter=0;
+
+  // Upload zone (op de startpagina)
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over');});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
+  zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag-over');handleFiles(e.dataTransfer.files);});
+  inp.addEventListener('change',e=>handleFiles(e.target.files));
+
+  // Full-page drag & drop — altijd actief, ook als dashboard al geladen is
+  document.addEventListener('dragenter',e=>{
+    e.preventDefault();
+    if([...e.dataTransfer.items].some(i=>i.kind==='file')){
+      dragCounter++;
+      overlay.classList.add('active');
+    }
+  });
+  document.addEventListener('dragleave',e=>{
+    dragCounter--;
+    if(dragCounter<=0){dragCounter=0;overlay.classList.remove('active');}
+  });
+  document.addEventListener('dragover',e=>e.preventDefault());
+  document.addEventListener('drop',e=>{
+    e.preventDefault();
+    dragCounter=0;
+    overlay.classList.remove('active');
+    if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+}
+async function handleFiles(files){
+  const err=document.getElementById('upload-error');err.textContent='';
+  for(const file of files){
+    if(!file.name.endsWith('.csv')){err.textContent=`${file.name} is geen .csv bestand.`;continue;}
+    try{
+      const text=await file.text();
+      // Detecteer type
+      const lines=text.split('\n').filter(l=>l.trim());
+      const headerCells=parseGenesysLine(lines[0])||[];
+      const csvType=detectCSVType(headerCells);
+      if(csvType==='interactie'){
+        const records=parseInteractieCSV(text);
+        if(!records.length)throw new Error('Geen geldige interactie-records gevonden.');
+        allRecords=[...allRecords,...records];
+        loadedFileNames.push({name:file.name,type:'int'});
+      } else if(csvType==='performance'){
+        const perf=parsePerformanceCSV(text);
+        if(!perf.length)throw new Error('Geen performance-records gevonden.');
+        // Vervang of voeg toe op naam
+        perf.forEach(p=>{
+          const idx=perfRecords.findIndex(r=>r.naam===p.naam);
+          if(idx>=0)perfRecords[idx]=p; else perfRecords.push(p);
+        });
+        loadedFileNames.push({name:file.name,type:'perf'});
+      } else {
+        throw new Error('Onbekend CSV-type. Controleer of dit een Genesys-export is.');
+      }
+    }catch(e){err.textContent=`Fout bij ${file.name}: ${e.message}`;}
+  }
+  if(allRecords.length){
+    allRecords.sort((a,b)=>a.datum-b.datum);
+    allRecords=dedup(allRecords);
+    buildPeriodList();
+    setupMultiSelect();
+    applyFilters();
+    showDashboard();
+  }
+  if(perfRecords.length) showPerfData();
+  saveToStorage();
+}
+function dedup(recs){
+  const seen=new Set();
+  return recs.filter(r=>{
+    const k=`${r.datumStr}_${r.tijdStr}_${r.gebruikers[0]||''}_${r.duurMs}`;
+    if(seen.has(k))return false;seen.add(k);return true;
+  });
+}
+function showDashboard(){
+  document.getElementById('upload-section').style.display='none';
+  document.getElementById('filter-bar').classList.remove('hidden');
+  document.getElementById('tabs-nav').classList.remove('hidden');
+  document.getElementById('btn-print').style.display='';
+  document.getElementById('btn-excel').style.display='';
+  document.getElementById('btn-clear').style.display='';
+  updateFilePills();
+  if(document.querySelector('.tab-panel.active')===document.getElementById('tab-5')||
+     !document.querySelector('.tab-panel.active')) showTab(1);
+}
+function showPerfData(){
+  document.getElementById('perf-no-data').style.display='none';
+  document.getElementById('perf-content').style.display='';
+  document.getElementById('perf-badge').style.display='';
+  // Toon periode-label uit de data
+  if(perfRecords.length){
+    const p=perfRecords[0];
+    document.getElementById('perf-period-label').textContent=
+      p.beginInterval&&p.eindeInterval?`Periode: ${p.beginInterval} — ${p.eindeInterval}`:'';
+  }
+  renderPerfTable();
+}
+function updateFilePills(){
+  const files=Array.isArray(loadedFileNames)?loadedFileNames:
+    loadedFileNames.map(n=>typeof n==='string'?{name:n,type:'int'}:n);
+  document.getElementById('loaded-files').innerHTML=files.map((f,i)=>
+    `<span class="file-pill">
+      <span class="pill-type ${f.type==='perf'?'pill-perf':'pill-int'}">${f.type==='perf'?'PERF':'INT'}</span>
+      📄 ${f.name} <span class="rm" onclick="removeFile(${i})">×</span>
+    </span>`).join('');
+  const badge=document.getElementById('data-badge');
+  badge.textContent=`${allRecords.length.toLocaleString('nl')} records${perfRecords.length?' · '+perfRecords.length+' agents':''}`;
+  badge.classList.add('loaded');
+}
+function removeFile(idx){
+  loadedFileNames.splice(idx,1);
+  if(!loadedFileNames.length){clearStorage();return;}
+  updateFilePills();saveToStorage();
+}
+
+// ═══ PERIODE ══════════════════════════════════════════════════════════════════
+function buildPeriodList(){
+  const weekMap={},monthMap={};
+  allRecords.forEach(r=>{
+    const d=r.datum,day=d.getDay(),diff=d.getDate()-(day===0?6:day-1);
+    const mon=new Date(d.getFullYear(),d.getMonth(),diff);
+    const wk=mon.toISOString().split('T')[0];
+    if(!weekMap[wk]){
+      const sun=new Date(mon);sun.setDate(mon.getDate()+6);
+      weekMap[wk]={from:wk,to:sun.toISOString().split('T')[0],label:`${fmtDS(mon)} – ${fmtDS(sun)}`};
+    }
+    const mk=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    if(!monthMap[mk]){
+      const last=new Date(d.getFullYear(),d.getMonth()+1,0);
+      const first=new Date(d.getFullYear(),d.getMonth(),1);
+      monthMap[mk]={from:first.toISOString().split('T')[0],to:last.toISOString().split('T')[0],
+        label:`${['Januari','Februari','Maart','April','Mei','Juni','Juli','Augustus','September','Oktober','November','December'][d.getMonth()]} ${d.getFullYear()}`};
+    }
+  });
+  window._weekList=Object.values(weekMap).sort((a,b)=>a.from.localeCompare(b.from));
+  window._monthList=Object.values(monthMap).sort((a,b)=>a.from.localeCompare(b.from));
+  setPeriodMode('week');
+}
+function fmtDS(d){return `${d.getDate()} ${['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][d.getMonth()]}`;}
+function setPeriodMode(mode){
+  periodMode=mode;
+  document.querySelectorAll('.toggle-btn[id^="mode-"]').forEach(b=>b.classList.remove('active'));
+  document.getElementById('mode-'+mode).classList.add('active');
+  const nav=document.getElementById('period-nav');
+  if(mode==='alles'){nav.style.visibility='hidden';periodList=[];applyFilters();return;}
+  nav.style.visibility='visible';
+  periodList=mode==='week'?window._weekList:window._monthList;
+  periodIndex=periodList.length-1;
+  updatePeriodLabel();applyFilters();
+}
+function navigatePeriod(dir){
+  periodIndex=Math.max(0,Math.min(periodList.length-1,periodIndex+dir));
+  updatePeriodLabel();applyFilters();
+}
+function updatePeriodLabel(){
+  const p=periodList[periodIndex]||{label:'—'};
+  document.getElementById('period-label').textContent=p.label;
+  document.getElementById('period-prev').disabled=(periodIndex===0);
+  document.getElementById('period-next').disabled=(periodIndex===periodList.length-1);
+}
+
+// ═══ MULTI-SELECT ═════════════════════════════════════════════════════════════
+function setupMultiSelect(){
+  const queues=[...new Set(allRecords.map(r=>r.wachtrijPrimair).filter(Boolean))].sort();
+  const agents=[...new Set(allRecords.flatMap(r=>r.gebruikers))].sort();
+  buildMS('queue',queues);buildMS('agent',agents);
+}
+function buildMS(type,items){
+  document.getElementById(`ms-${type}-items`).innerHTML=
+    `<div class="ms-item all-item" onclick="toggleMSAll('${type}')">
+      <input type="checkbox" id="ms-${type}-all" checked><label>Alles selecteren</label></div>`+
+    items.map(v=>`<div class="ms-item" data-val="${v.replace(/"/g,'&quot;')}" onclick="toggleMSItem('${type}',this)">
+      <input type="checkbox" checked><span>${v}</span></div>`).join('');
+}
+function toggleMS(type){
+  const btn=document.getElementById(`ms-${type}-btn`);
+  const menu=document.getElementById(`ms-${type}-menu`);
+  const isOpen=menu.classList.contains('open');
+  closeAllMS();
+  if(!isOpen){btn.classList.add('open');menu.classList.add('open');}
+}
+function closeAllMS(){
+  document.querySelectorAll('.ms-btn').forEach(b=>b.classList.remove('open'));
+  document.querySelectorAll('.ms-menu').forEach(m=>m.classList.remove('open'));
+}
+function toggleMSItem(type,row){
+  const cb=row.querySelector('input[type=checkbox]');
+  cb.checked=!cb.checked;
+  syncAllCheckbox(type);updateMSLabel(type);applyFilters();
+}
+function toggleMSAll(type){
+  const cbs=getItemCBs(type);
+  const allChecked=cbs.every(cb=>cb.checked);
+  cbs.forEach(cb=>{cb.checked=!allChecked;});
+  document.getElementById(`ms-${type}-all`).checked=!allChecked;
+  updateMSLabel(type);applyFilters();
+}
+function syncAllCheckbox(type){
+  document.getElementById(`ms-${type}-all`).checked=getItemCBs(type).every(cb=>cb.checked);
+}
+function getItemCBs(type){
+  return[...document.querySelectorAll(`#ms-${type}-items .ms-item:not(.all-item) input[type=checkbox]`)];
+}
+function getSelectedVals(type){
+  return getItemCBs(type).filter(cb=>cb.checked).map(cb=>cb.closest('.ms-item').dataset.val);
+}
+function updateMSLabel(type){
+  const cbs=getItemCBs(type);const checked=cbs.filter(cb=>cb.checked).length;
+  const lbl=document.getElementById(`ms-${type}-label`);
+  const btn=document.getElementById(`ms-${type}-btn`);
+  let cnt=btn.querySelector('.ms-count');
+  if(checked===cbs.length||checked===0){
+    lbl.textContent=type==='queue'?'Alle wachtrijen':'Alle medewerkers';
+    if(cnt)cnt.remove();
+  }else{
+    lbl.textContent=`${checked} geselecteerd`;
+    if(!cnt){cnt=document.createElement('span');cnt.className='ms-count';btn.insertBefore(cnt,btn.querySelector('.ms-caret'));}
+    cnt.textContent=checked;
+  }
+}
+function filterMSItems(type,query){
+  document.querySelectorAll(`#ms-${type}-items .ms-item:not(.all-item)`).forEach(item=>{
+    item.style.display=item.querySelector('span').textContent.toLowerCase().includes(query.toLowerCase())?'':'none';
+  });
+}
+
+// ═══ FILTERS ══════════════════════════════════════════════════════════════════
+function applyFilters(){
+  let from='',to='';
+  if(periodMode!=='alles'&&periodList[periodIndex]){from=periodList[periodIndex].from;to=periodList[periodIndex].to;}
+  const selQ=getSelectedVals('queue');const selA=getSelectedVals('agent');
+  const totalQ=getItemCBs('queue').length,totalA=getItemCBs('agent').length;
+  const allQ=selQ.length===0||selQ.length===totalQ;
+  const allA=selA.length===0||selA.length===totalA;
+  filteredRecords=allRecords.filter(r=>{
+    if(from&&r.datumStr<from)return false;
+    if(to&&r.datumStr>to)return false;
+    if(!allQ&&!selQ.includes(r.wachtrijPrimair))return false;
+    if(!allA&&!r.gebruikers.some(u=>selA.includes(u)))return false;
+    return true;
+  });
+  renderAll();
+}
+function setTeamFilter(team,btn){
+  activeTeamFilter=team;
+  document.querySelectorAll('#team-filter-group .toggle-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');renderAgentTable();
+}
+function setPerfTeamFilter(team,btn){
+  activePerfTeamFilter=team;
+  document.querySelectorAll('#perf-team-group .toggle-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');renderPerfTable();
+}
+
+// ═══ ANALYSE ══════════════════════════════════════════════════════════════════
+function calcKPIs(recs){
+  const inkomend=recs.filter(r=>r.richting.includes('Inkomend')&&!r.isIntern&&r.wachtrijen.length>0);
+  const uitgaand=recs.filter(r=>r.richting==='Uitgaand'&&!r.isIntern);
+  const gemist=recs.filter(r=>r.isGemist);
+  const beantwoord=inkomend.filter(r=>!r.isGemist&&r.gebruikers.length>0);
+  const intern=recs.filter(r=>r.isIntern);
+  const doorverbonden=recs.filter(r=>r.isDoorverbonden&&!r.isIntern);
+  const gesprRecs=recs.filter(r=>r.gebruikers.length>0&&!r.isIntern&&r.gesprekMs>0);
+  const gemDuurMs=gesprRecs.length?gesprRecs.reduce((s,r)=>s+r.gesprekMs,0)/gesprRecs.length:0;
+  return{totaal:recs.length,inkomend:inkomend.length,uitgaand:uitgaand.length,
+    gemist:gemist.length,beantwoord:beantwoord.length,
+    beantwoordPct:inkomend.length?beantwoord.length/inkomend.length*100:0,
+    gemistPct:inkomend.length?gemist.length/inkomend.length*100:0,
+    intern:intern.length,doorverbonden:doorverbonden.length,gemDuurMs};
+}
+function calcPerQueue(recs){
+  const map={};
+  recs.filter(r=>r.wachtrijPrimair).forEach(r=>{
+    if(!map[r.wachtrijPrimair])map[r.wachtrijPrimair]=[];
+    map[r.wachtrijPrimair].push(r);
+  });
+  return Object.entries(map).map(([naam,rs])=>({naam,...calcKPIs(rs)})).sort((a,b)=>b.totaal-a.totaal);
+}
+function calcPerAgent(recs){
+  const map={};
+  recs.forEach(r=>r.gebruikers.forEach(ag=>{
+    if(!ag)return;if(!map[ag])map[ag]=[];map[ag].push(r);
+  }));
+  return Object.entries(map).map(([naam,rs])=>{
+    const kpi=calcKPIs(rs);
+    return{...kpi,naam,internAantal:rs.filter(r=>r.isIntern).length,recs:rs};
+  }).sort((a,b)=>b.totaal-a.totaal);
+}
+function calcHourlyData(recs){
+  const result={};[1,2,3,4,5].forEach(d=>{result[d]=new Array(24).fill(0);});
+  recs.filter(r=>r.richting.includes('Inkomend')&&!r.isIntern&&r.weekdag>=1&&r.weekdag<=5)
+    .forEach(r=>{result[r.weekdag][r.uur]++;});
+  const avgArr=new Array(24).fill(0);
+  const dayDates={};[1,2,3,4,5].forEach(d=>{dayDates[d]=new Set(recs.filter(r=>r.weekdag===d).map(r=>r.datumStr));});
+  for(let h=0;h<24;h++){let total=0,count=0;
+    [1,2,3,4,5].forEach(d=>{if(dayDates[d].size>0){total+=result[d][h]/dayDates[d].size;count++;}});
+    avgArr[h]=count>0?Math.round(total/count*10)/10:0;}
+  result['avg']=avgArr;return result;
+}
+function calcDailyByHour(recs){
+  const totIn=new Array(24).fill(0),totOut=new Array(24).fill(0);
+  const nDays=new Set(recs.filter(r=>!r.isIntern).map(r=>r.datumStr)).size||1;
+  recs.filter(r=>!r.isIntern).forEach(r=>{
+    if(r.richting.includes('Inkomend'))totIn[r.uur]++;else totOut[r.uur]++;});
+  const labels=[];for(let h=8;h<=17;h++)labels.push(`${String(h).padStart(2,'0')}:00`);
+  return{labels,inkomend:labels.map((_,i)=>Math.round(totIn[8+i]/nDays*10)/10),
+    uitgaand:labels.map((_,i)=>Math.round(totOut[8+i]/nDays*10)/10)};
+}
+function calcDailyByWeekday(recs){
+  const totIn=new Array(7).fill(0),totOut=new Array(7).fill(0);
+  const nWeeks=new Set();
+  recs.filter(r=>!r.isIntern).forEach(r=>{
+    const d=r.datum,day=d.getDay(),diff=d.getDate()-(day===0?6:day-1);
+    const mon=new Date(d.getFullYear(),d.getMonth(),diff);
+    nWeeks.add(mon.toISOString().split('T')[0]);
+    if(r.richting.includes('Inkomend'))totIn[r.weekdag]++;else totOut[r.weekdag]++;
+  });
+  const n=nWeeks.size||1;
+  return{labels:['Ma','Di','Wo','Do','Vr'],
+    inkomend:[1,2,3,4,5].map(d=>Math.round(totIn[d]/n)),
+    uitgaand:[1,2,3,4,5].map(d=>Math.round(totOut[d]/n))};
+}
+function calcDailyByWeekNum(recs){
+  const weekMap={};
+  recs.filter(r=>!r.isIntern).forEach(r=>{
+    const d=r.datum,day=d.getDay(),diff=d.getDate()-(day===0?6:day-1);
+    const mon=new Date(d.getFullYear(),d.getMonth(),diff);
+    const wk=mon.toISOString().split('T')[0];
+    if(!weekMap[wk])weekMap[wk]={in:0,out:0};
+    if(r.richting.includes('Inkomend'))weekMap[wk].in++;else weekMap[wk].out++;
+  });
+  const sorted=Object.keys(weekMap).sort();
+  return{labels:sorted.map(w=>{const d=new Date(w);return fmtDS(d);}),
+    inkomend:sorted.map(w=>weekMap[w].in),uitgaand:sorted.map(w=>weekMap[w].out)};
+}
+function calcReasons(recs){
+  const map={};
+  recs.forEach(r=>r.afrondingen.forEach(a=>{map[a]=(map[a]||0)+1;}));
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,15);
+}
+
+// ═══ FORMAT ═══════════════════════════════════════════════════════════════════
+function fmtDuur(ms){if(!ms||ms<0)return'—';const s=Math.round(ms/1000),m=Math.floor(s/60);return`${m}:${String(s%60).padStart(2,'0')}`;}
+function fmtPct(n,d=1){return isNaN(n)?'—':n.toFixed(d)+'%';}
+function fmtNum(n){return(n||0).toLocaleString('nl');}
+function stPct(p){return p>=settings.goodPct?'st-green':p>=settings.warnPct?'st-orange':'st-red';}
+function bdPct(p){return p>=settings.goodPct?'bg':p>=settings.warnPct?'bo':'br';}
+function bdSpk(s){return s>=settings.perfSpkRed?'br':s>=(settings.perfSpkWarn||240)?'bo':'bg';}
+function bdHold(p){return p>=(settings.perfHoldRed||15)?'br':p>=(settings.perfHoldWarn||5)?'bo':'bg';}
+
+// ═══ RENDER ═══════════════════════════════════════════════════════════════════
+function renderAll(){
+  renderKPIs();renderQueueTable();renderCharts();renderAgentTable();
+}
+function renderKPIs(){
+  const k=calcKPIs(filteredRecords);
+  const durSt=k.gemDuurMs/1000>=settings.durRed?'st-red':k.gemDuurMs/1000>=settings.durWarn?'st-orange':'st-blue';
+  const misSt=k.gemistPct>=settings.missRed?'st-red':k.gemistPct>=settings.missRed*.7?'st-orange':'st-green';
+  document.getElementById('kpi-row-1').innerHTML=[
+    {label:'Totaal',value:fmtNum(k.totaal),sub:'alle interacties',cls:'st-blue'},
+    {label:'Inkomend',value:fmtNum(k.inkomend),sub:'via wachtrij',cls:'st-blue'},
+    {label:'Uitgaand',value:fmtNum(k.uitgaand),sub:'outbound',cls:'st-blue'},
+    {label:'Gemist',value:fmtNum(k.gemist),sub:fmtPct(k.gemistPct)+' van inkomend',cls:misSt},
+  ].map(c=>`<div class="kpi-card ${c.cls}"><div class="kpi-label">${c.label}</div><div class="kpi-value">${c.value}</div><div class="kpi-sub">${c.sub}</div></div>`).join('');
+  document.getElementById('kpi-row-2').innerHTML=[
+    {label:'Beantwoord %',value:fmtPct(k.beantwoordPct),sub:`${fmtNum(k.beantwoord)} van ${fmtNum(k.inkomend)}`,cls:stPct(k.beantwoordPct)},
+    {label:'Gem. gespreksduur',value:fmtDuur(k.gemDuurMs),sub:'talk time',cls:durSt},
+    {label:'Doorverbonden',value:fmtNum(k.doorverbonden),sub:fmtPct(k.inkomend?k.doorverbonden/k.inkomend*100:0)+' van inkomend',cls:'st-blue'},
+    {label:'Intern',value:fmtNum(k.intern),sub:'buiten wachtrijen',cls:'st-blue'},
+  ].map(c=>`<div class="kpi-card ${c.cls}"><div class="kpi-label">${c.label}</div><div class="kpi-value">${c.value}</div><div class="kpi-sub">${c.sub}</div></div>`).join('');
+}
+function renderQueueTable(){
+  const data=calcPerQueue(filteredRecords);
+  const max=Math.max(...data.map(q=>q.inkomend),1);
+  document.getElementById('queue-tbody').innerHTML=data.map(q=>`<tr>
+    <td><strong>${q.naam}</strong></td>
+    <td class="num">${fmtNum(q.totaal)}</td><td class="num">${fmtNum(q.inkomend)}</td>
+    <td class="num">${fmtNum(q.uitgaand)}</td><td class="num">${fmtNum(q.gemist)}</td>
+    <td class="num"><span class="badge ${bdPct(q.beantwoordPct)}">${fmtPct(q.beantwoordPct)}</span></td>
+    <td class="num">${fmtDuur(q.gemDuurMs)}</td>
+    <td class="num">${fmtPct(q.inkomend?q.doorverbonden/q.inkomend*100:0)}</td>
+    <td><div class="mini-bar-bg"><div class="mini-bar" style="width:${Math.round(q.inkomend/max*100)}%"></div></div></td>
+  </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--text-light);padding:24px">Geen data</td></tr>';
+  sortTbl('queue-table',1,'n',true);
+}
+function renderAgentTable(){
+  const data=calcPerAgent(filteredRecords);
+  const filtered=activeTeamFilter?data.filter(a=>getTeam(a.naam)===activeTeamFilter):data;
+  document.getElementById('agent-tbody').innerHTML=filtered.map(a=>{
+    const sid=`d-${a.naam.replace(/[^a-zA-Z0-9]/g,'-')}`;
+    return `<tr class="agent-row" onclick="toggleDetail('${sid}','${a.naam.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}',this)">
+      <td><span class="agent-toggle"><span class="agent-arrow" id="arr-${sid}">▶</span> <strong>${a.naam}</strong></span></td>
+      <td style="font-size:12px;color:var(--text-muted)">${getTeam(a.naam)}</td>
+      <td class="num">${fmtNum(a.totaal)}</td><td class="num">${fmtNum(a.inkomend)}</td>
+      <td class="num">${fmtNum(a.uitgaand)}</td><td class="num">${fmtDuur(a.gemDuurMs)}</td>
+      <td class="num">${fmtPct(a.inkomend?a.doorverbonden/a.inkomend*100:0)}</td>
+      <td class="num">${fmtNum(a.internAantal)}</td>
+    </tr>
+    <tr class="agent-detail-row" id="${sid}" style="display:none">
+      <td colspan="8"><div class="agent-detail-inner" id="inner-${sid}"></div></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--text-light);padding:24px">Geen medewerkers gevonden</td></tr>';
+  sortTbl('agent-table',2,'n',true);
+}
+function renderPerfTable(){
+  if(!perfRecords.length)return;
+  // Bereken teamgemiddelden voor gesprekstijd
+  const teamAvg={};
+  const teams=[...new Set(perfRecords.map(p=>getTeam(p.naam)))];
+  teams.forEach(t=>{
+    const tr=perfRecords.filter(p=>getTeam(p.naam)===t&&p.verwerking>0);
+    teamAvg[t]=tr.length?tr.reduce((s,p)=>s+p.gemGespMs,0)/tr.length:0;
+  });
+  const filtered=activePerfTeamFilter?perfRecords.filter(p=>getTeam(p.naam)===activePerfTeamFilter):perfRecords;
+  const sorted=[...filtered].sort((a,b)=>b.verwerking-a.verwerking);
+
+  document.getElementById('perf-tbody').innerHTML=sorted.map(p=>{
+    const team=getTeam(p.naam);
+    const avg=teamAvg[team]||0;
+    const spkS=p.gemGespMs/1000;
+    const verwS=p.gemVerwMs/1000;
+    const holdPct=p.verwerking>0?p.inWachtstand/p.verwerking*100:0;
+    const doorPct=p.beantwoord>0?p.doorverbonden/p.beantwoord*100:0;
+    // Delta vs team
+    const deltaMs=p.gemGespMs-avg;
+    const deltaS=Math.round(deltaMs/1000);
+    const maxDelta=Math.max(...Object.values(teamAvg).filter(v=>v>0))*0.5||1;
+    const barW=Math.min(Math.abs(deltaMs)/(maxDelta)*50,50);
+    const deltaHtml=p.verwerking>0&&avg>0?`
+      <span class="delta ${deltaS>0?'delta-pos':'delta-neg'}">
+        ${deltaS>0?'+':''}${fmtDuur(Math.abs(deltaMs))}
+        <div class="delta-bar" style="background:${deltaS>0?'var(--red)':'var(--green)'};width:${barW}px"></div>
+      </span>`:'—';
+    return`<tr>
+      <td><strong>${p.naam}</strong></td>
+      <td style="font-size:12px;color:var(--text-muted)">${team}</td>
+      <td class="num">${fmtNum(p.verwerking)||'—'}</td>
+      <td class="num">${fmtNum(p.beantwoord)||'—'}</td>
+      <td class="num"><span class="badge ${bdSpk(spkS)}">${fmtDuur(p.gemGespMs)}</span></td>
+      <td class="num">${fmtDuur(p.gemVerwMs)}</td>
+      <td class="num"><span class="badge ${bdHold(holdPct)}">${fmtPct(holdPct)}</span></td>
+      <td class="num">${fmtPct(doorPct)}</td>
+      <td>${deltaHtml}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--text-light);padding:24px">Geen data</td></tr>';
+  sortTbl('perf-table',2,'n',true);
+}
+
+// ═══ AGENT DETAIL ═════════════════════════════════════════════════════════════
+function toggleDetail(sid,naam,row){
+  if(row.classList.contains('agent-detail-row'))return;
+  const dr=document.getElementById(sid);
+  const arrow=document.getElementById('arr-'+sid);
+  const isOpen=dr.style.display!=='none';
+  dr.style.display=isOpen?'none':'';
+  arrow.classList.toggle('open',!isOpen);
+  if(!isOpen)buildDetailTable(sid,naam);
+}
+function buildDetailTable(sid,naam){
+  const recs=filteredRecords.filter(r=>r.gebruikers.includes(naam)).sort((a,b)=>b.datum-a.datum);
+  document.getElementById('inner-'+sid).innerHTML=`
+    <input class="detail-search" type="text" placeholder="🔍 Zoek op datum, wachtrij, reden…"
+      oninput="filterDetail('${sid}','${naam.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}',this.value)">
+    <div class="detail-table-wrap">
+      <table class="detail-table">
+        <thead><tr><th>Datum</th><th>Tijd</th><th>Richting</th><th>Wachtrij</th>
+          <th class="num">Duur</th><th>Reden</th><th>Route</th></tr></thead>
+        <tbody id="dtbody-${sid}">${buildDetailRows(recs,naam)}</tbody>
+      </table>
+    </div>`;
+}
+function buildRoute(r,naam){
+  if(!r.isDoorverbonden||r.gebruikers.length<=1)return'';
+  return r.gebruikers.map((u,i)=>{
+    const span=u===naam?`<strong style="color:var(--blue)">${u}</strong>`:u;
+    return i===0?span:`<span class="arrow">→</span>${span}`;
+  }).join('');
+}
+function buildDetailRows(recs,naam){
+  if(!recs.length)return'<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--text-light)">Geen interacties gevonden</td></tr>';
+  return recs.map(r=>`<tr>
+    <td>${r.datumStr}</td><td>${r.tijdStr}</td>
+    <td>${r.richting.includes('Inkomend')?'⬇️ In':'⬆️ Uit'}</td>
+    <td style="color:var(--text-muted)">${r.wachtrijPrimair||'—'}</td>
+    <td class="num">${fmtDuur(r.gesprekMs||r.duurMs)}</td>
+    <td style="color:var(--text-muted);font-size:11px">${r.afrondingen[0]||'—'}</td>
+    <td class="route-cell">${buildRoute(r,naam)}</td>
+  </tr>`).join('');
+}
+function filterDetail(sid,naam,query){
+  const q=query.toLowerCase();
+  const recs=filteredRecords.filter(r=>r.gebruikers.includes(naam)).filter(r=>{
+    if(!q)return true;
+    return r.datumStr.includes(q)||r.wachtrijPrimair.toLowerCase().includes(q)||
+      r.afrondingen.some(a=>a.toLowerCase().includes(q))||r.richting.toLowerCase().includes(q)||
+      r.gebruikers.some(u=>u.toLowerCase().includes(q));
+  }).sort((a,b)=>b.datum-a.datum);
+  document.getElementById('dtbody-'+sid).innerHTML=buildDetailRows(recs,naam);
+}
+
+// ═══ CHARTS ═══════════════════════════════════════════════════════════════════
+let _hourlyVisible=new Set(['avg']);
+let _dailyMode='dag';
+function toggleHourlyDay(day,btn){
+  if(day==='avg'){
+    _hourlyVisible=new Set(['avg']);
+    document.querySelectorAll('#hourly-toggles .ct-btn').forEach(b=>b.classList.toggle('active',b.dataset.day==='avg'));
+  }else{
+    if(_hourlyVisible.has(day))_hourlyVisible.delete(day);else _hourlyVisible.add(day);
+    _hourlyVisible.delete('avg');
+    if(_hourlyVisible.size===0){
+      _hourlyVisible.add('avg');
+      document.querySelectorAll('#hourly-toggles .ct-btn').forEach(b=>b.classList.toggle('active',b.dataset.day==='avg'));
+    }else{
+      document.getElementById('hourly-toggles').querySelector('[data-day="avg"]').classList.remove('active');
+      btn.classList.toggle('active',_hourlyVisible.has(day));
+    }
+  }
+  renderHourlyChart();
+}
+function setDailyMode(mode,btn){
+  _dailyMode=mode;
+  document.querySelectorAll('[data-dm]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDailyChart();
+}
+function renderCharts(){renderHourlyChart();renderDailyChart();
+  const reasons=calcReasons(filteredRecords);
+  renderChart('chart-reasons','bar',{
+    labels:reasons.map(r=>r[0]),
+    datasets:[{label:'Aantal',data:reasons.map(r=>r[1]),backgroundColor:'#1B6CB2'}]
+  },{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'#f0f0f0'}},y:{ticks:{font:{size:11}}}}});
+}
+function renderHourlyChart(){
+  const hourly=calcHourlyData(filteredRecords);
+  const hours=[];for(let h=7;h<=19;h++)hours.push(`${h}:00`);
+  const dayNames={avg:'Gemiddelde',1:'Maandag',2:'Dinsdag',3:'Woensdag',4:'Donderdag',5:'Vrijdag'};
+  const datasets=[..._hourlyVisible].filter(d=>hourly[d]).map(d=>({
+    label:dayNames[d],data:hours.map((_,hi)=>hourly[d][7+hi]||0),
+    borderColor:DAY_COLORS[d]||'#999',backgroundColor:'transparent',
+    tension:.3,pointRadius:3,borderWidth:d==='avg'?3:2,borderDash:d==='avg'?[]:[5,3],
+  }));
+  renderChart('chart-hourly','line',{labels:hours,datasets},
+    {plugins:{legend:{position:'top'}},scales:{x:{grid:{color:'#f0f0f0'}},y:{grid:{color:'#f0f0f0'},beginAtZero:true}}});
+}
+function renderDailyChart(){
+  let d;
+  if(_dailyMode==='dag')d=calcDailyByHour(filteredRecords);
+  else if(_dailyMode==='week')d=calcDailyByWeekday(filteredRecords);
+  else d=calcDailyByWeekNum(filteredRecords);
+  renderChart('chart-daily','bar',{
+    labels:d.labels,
+    datasets:[{label:'Inkomend',data:d.inkomend,backgroundColor:'#1B6CB2'},
+              {label:'Uitgaand',data:d.uitgaand,backgroundColor:'#BCC8D6'}]
+  },{plugins:{legend:{position:'top'}},
+    scales:{x:{ticks:{maxTicksLimit:20,font:{size:10}},grid:{display:false}},y:{grid:{color:'#f0f0f0'},beginAtZero:true}}});
+}
+function renderChart(id,type,data,options={}){
+  const canvas=document.getElementById(id);if(!canvas)return;
+  if(charts[id]){charts[id].destroy();delete charts[id];}
+  const def={responsive:true,plugins:{legend:{labels:{font:{family:"'Open Sans'"},boxWidth:12}}},
+    scales:{x:{grid:{color:'#f0f0f0'},ticks:{font:{family:"'Open Sans'"}}},
+            y:{grid:{color:'#f0f0f0'},ticks:{font:{family:"'Open Sans'"}}}}};
+  charts[id]=new Chart(canvas,{type,data,options:deepMerge(def,options)});
+}
+function deepMerge(t,s){
+  const o=Object.assign({},t);
+  for(const k in s){if(s[k]&&typeof s[k]==='object'&&!Array.isArray(s[k]))o[k]=deepMerge(t[k]||{},s[k]);else o[k]=s[k];}
+  return o;
+}
+
+// ═══ SORTEREN ═════════════════════════════════════════════════════════════════
+function sortTbl(tableId,colIdx,type,forceDesc=false){
+  const table=document.getElementById(tableId);
+  const tbody=table.querySelector('tbody');
+  const th=table.querySelectorAll('th')[colIdx];
+  const asc=forceDesc?false:!th.classList.contains('s-asc');
+  table.querySelectorAll('th').forEach(t=>{t.classList.remove('s-asc','s-desc');});
+  th.classList.add(asc?'s-asc':'s-desc');
+  const rows=[...tbody.querySelectorAll('tr:not(.agent-detail-row)')];
+  const pairs=[];
+  for(let i=0;i<rows.length;i++){
+    const next=rows[i].nextElementSibling;
+    pairs.push({main:rows[i],detail:(next&&next.classList.contains('agent-detail-row'))?next:null});
+  }
+  pairs.sort((a,b)=>{
+    const av=a.main.cells[colIdx]?.textContent?.trim()||'';
+    const bv=b.main.cells[colIdx]?.textContent?.trim()||'';
+    if(type==='n'){
+      const toN=v=>parseFloat(v.replace(/\./g,'').replace(',','.').replace(/[^0-9\-]/g,''));
+      const an=toN(av),bn=toN(bv);
+      if(!isNaN(an)&&!isNaN(bn))return asc?an-bn:bn-an;
+    }
+    if(type==='t'){
+      const toSec=v=>{const m=v.match(/(\d+):(\d+)/);return m?parseInt(m[1])*60+parseInt(m[2]):0;};
+      return asc?toSec(av)-toSec(bv):toSec(bv)-toSec(av);
+    }
+    return asc?av.localeCompare(bv,'nl'):bv.localeCompare(av,'nl');
+  });
+  pairs.forEach(p=>{tbody.appendChild(p.main);if(p.detail)tbody.appendChild(p.detail);});
+}
+
+// ═══ TABS ═════════════════════════════════════════════════════════════════════
+function showTab(n){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+n).classList.add('active');
+  document.querySelectorAll('.tab-btn')[n-1].classList.add('active');
+}
+function showSubTab(id,btn){
+  document.querySelectorAll('#tab-3 .sub-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#tab-3 .sub-tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('sub-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ═══ EXCEL EXPORT ═════════════════════════════════════════════════════════════
+function exportExcel(){
+  if(!filteredRecords.length&&!perfRecords.length){alert('Geen data om te exporteren.');return;}
+  const wb=XLSX.utils.book_new();
+  const p=periodMode!=='alles'&&periodList[periodIndex]?periodList[periodIndex].label:'Alles';
+
+  // 01_KPIs
+  const k=calcKPIs(filteredRecords);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+    ['Fabory Inside Sales — Telefonie Dashboard'],['Periode:',p],[],
+    ['KPI','Waarde','Toelichting'],
+    ['Totaal gesprekken',k.totaal,'alle interacties'],
+    ['Inkomend',k.inkomend,'via wachtrij'],['Uitgaand',k.uitgaand,'outbound'],
+    ['Gemist',k.gemist,fmtPct(k.gemistPct)+' van inkomend'],
+    ['Beantwoord',k.beantwoord,fmtPct(k.beantwoordPct)+' van inkomend'],
+    ['Gem. gespreksduur',fmtDuur(k.gemDuurMs),'talk time'],
+    ['Doorverbonden',k.doorverbonden,fmtPct(k.inkomend?k.doorverbonden/k.inkomend*100:0)+' van inkomend'],
+    ['Intern',k.intern,'buiten wachtrijen'],
+  ]),'01_KPIs');
+
+  // 02_Per_wachtrij
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+    ['Wachtrij','Totaal','Inkomend','Uitgaand','Gemist','Beantwoord%','Gem. duur','Doorverbonden%'],
+    ...calcPerQueue(filteredRecords).map(q=>[q.naam,q.totaal,q.inkomend,q.uitgaand,q.gemist,
+      +q.beantwoordPct.toFixed(1),fmtDuur(q.gemDuurMs),+(q.inkomend?(q.doorverbonden/q.inkomend*100).toFixed(1):0)])
+  ]),'02_Per_wachtrij');
+
+  // 03_Interacties_per_dag
+  const daily=calcDailyByWeekNum(filteredRecords);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+    ['Week','Inkomend','Uitgaand','Totaal'],
+    ...daily.labels.map((l,i)=>[l,daily.inkomend[i],daily.uitgaand[i],daily.inkomend[i]+daily.uitgaand[i]])
+  ]),'03_Interacties_per_dag');
+
+  // 04_Gespreksredenen
+  const reasons=calcReasons(filteredRecords);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+    ['Gespreksreden','Aantal','% van totaal'],
+    ...reasons.map(r=>[r[0],r[1],+((r[1]/filteredRecords.length*100).toFixed(1))])
+  ]),'04_Gespreksredenen');
+
+  // 05_Beldruk_per_uur
+  const hourly=calcHourlyData(filteredRecords);
+  const hdrRow=['Uur','Gemiddelde','Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag'];
+  const hourRows=[];
+  for(let h=7;h<=19;h++){
+    hourRows.push([`${h}:00`,
+      +(hourly['avg'][h]||0).toFixed(1),
+      hourly[1][h]||0,hourly[2][h]||0,hourly[3][h]||0,hourly[4][h]||0,hourly[5][h]||0]);
+  }
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([hdrRow,...hourRows]),'05_Beldruk_per_uur');
+
+  // 06_Medewerkers_activiteit
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+    ['Medewerker','Team','Totaal','Inkomend','Uitgaand','Gem. duur','Doorverbonden%','Intern'],
+    ...calcPerAgent(filteredRecords).map(a=>[a.naam,getTeam(a.naam),a.totaal,a.inkomend,a.uitgaand,
+      fmtDuur(a.gemDuurMs),+(a.inkomend?(a.doorverbonden/a.inkomend*100).toFixed(1):0),a.internAantal])
+  ]),'06_Medewerkers_activiteit');
+
+  // 07_Medewerkers_performance (alleen als perfRecords aanwezig)
+  if(perfRecords.length){
+    const teamAvg={};
+    const teams=[...new Set(perfRecords.map(p=>getTeam(p.naam)))];
+    teams.forEach(t=>{
+      const tr=perfRecords.filter(p=>getTeam(p.naam)===t&&p.verwerking>0);
+      teamAvg[t]=tr.length?tr.reduce((s,p)=>s+p.gemGespMs,0)/tr.length:0;
+    });
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+      ['Periode:',perfRecords[0]?.beginInterval+' — '+perfRecords[0]?.eindeInterval],[],
+      ['Medewerker','Team','Verwerkt','Beantwoord','Gem. gesprekstijd (s)','Gem. verwerking (s)',
+       'Gem. ACW (s)','In wachtstand','Wachtstand%','Doorverbonden','Doorverbonden%','↕ vs. team (s)'],
+      ...[...perfRecords].sort((a,b)=>b.verwerking-a.verwerking).map(p=>{
+        const team=getTeam(p.naam);
+        const avg=teamAvg[team]||0;
+        const holdPct=p.verwerking>0?+(p.inWachtstand/p.verwerking*100).toFixed(1):0;
+        const doorPct=p.beantwoord>0?+(p.doorverbonden/p.beantwoord*100).toFixed(1):0;
+        const deltaS=avg>0?+((p.gemGespMs-avg)/1000).toFixed(1):0;
+        return[p.naam,team,p.verwerking,p.beantwoord,
+          +(p.gemGespMs/1000).toFixed(0),+(p.gemVerwMs/1000).toFixed(0),+(p.gemAcwMs/1000).toFixed(0),
+          p.inWachtstand,holdPct,p.doorverbonden,doorPct,deltaS];
+      })
+    ]),'07_Performance');
+  }
+
+  XLSX.writeFile(wb,`Fabory_Telefonie_${p.replace(/[^a-zA-Z0-9]/g,'-')}.xlsx`);
+}
+
+// ═══ SHAREPOINT — FASE 2 ═════════════════════════════════════════════════════
+const STOR_SP='fabory-sp-settings-v1';
+let msalInstance=null;
+let spAccount=null;
+let spSettings={};
+
+const GRAPH_SCOPES=['Files.Read.All','Sites.Read.All','User.Read'];
+
+function loadSpSettings(){
+  const s=localStorage.getItem(STOR_SP);
+  if(!s) return;
+  spSettings=JSON.parse(s);
+  if(spSettings.clientId) document.getElementById('sp-client-id').value=spSettings.clientId;
+  if(spSettings.tenantId) document.getElementById('sp-tenant-id').value=spSettings.tenantId;
+  if(spSettings.siteId)   document.getElementById('sp-site-id').value=spSettings.siteId;
+  if(spSettings.driveId)  document.getElementById('sp-drive-id').value=spSettings.driveId;
+  if(spSettings.folderPath) document.getElementById('sp-folder-path').value=spSettings.folderPath;
+}
+function saveSpSettings(){
+  spSettings={
+    clientId:   document.getElementById('sp-client-id').value.trim(),
+    tenantId:   document.getElementById('sp-tenant-id').value.trim(),
+    siteId:     document.getElementById('sp-site-id').value.trim(),
+    driveId:    document.getElementById('sp-drive-id').value.trim(),
+    folderPath: document.getElementById('sp-folder-path').value.trim()||'Telefonie',
+  };
+  localStorage.setItem(STOR_SP,JSON.stringify(spSettings));
+  const msg=document.getElementById('sp-saved-msg');
+  msg.classList.add('show'); setTimeout(()=>msg.classList.remove('show'),2000);
+}
+function initMsal(){
+  if(!spSettings.clientId||!spSettings.tenantId){
+    showSpError('Vul eerst Client ID en Tenant ID in onder Instellingen → SharePoint Koppeling.');
+    showTab(4); return false;
+  }
+  if(msalInstance) return true;
+  try{
+    msalInstance=new msal.PublicClientApplication({
+      auth:{
+        clientId:   spSettings.clientId,
+        authority:  `https://login.microsoftonline.com/${spSettings.tenantId}`,
+        redirectUri:'http://localhost',
+      },
+      cache:{cacheLocation:'localStorage', storeAuthStateInCookie:false},
+      system:{loggerOptions:{logLevel:msal.LogLevel.Warning}}
+    });
+    return true;
+  }catch(e){
+    showSpError(`MSAL initialisatie mislukt: ${e.message}`);
+    return false;
+  }
+}
+async function spConnect(){
+  saveSpSettings();
+  if(!initMsal()) return;
+  hideSpError();
+  try{
+    // Probeer silent eerst (al ingelogd)
+    const accounts=msalInstance.getAllAccounts();
+    let tokenResponse;
+    if(accounts.length>0){
+      spAccount=accounts[0];
+      tokenResponse=await msalInstance.acquireTokenSilent({scopes:GRAPH_SCOPES,account:spAccount});
+    }else{
+      tokenResponse=await msalInstance.loginPopup({scopes:GRAPH_SCOPES});
+      spAccount=tokenResponse.account;
+    }
+    // Verbonden — toon status
+    document.getElementById('sp-status').style.display='';
+    document.getElementById('btn-sp-connect').textContent='🔗 Herverbinden';
+    document.getElementById('btn-sp-load').style.display='';
+    // Lijst bestanden op
+    await spListFiles(tokenResponse.accessToken);
+  }catch(e){
+    if(e.errorCode==='user_cancelled'){
+      showSpError('Inloggen geannuleerd.');
+    }else{
+      showSpError(`Verbinding mislukt: ${e.message||e.errorCode}`);
+    }
+  }
+}
+async function spGetToken(){
+  if(!msalInstance||!spAccount) throw new Error('Niet verbonden. Klik op 🔗 SharePoint eerst.');
+  const resp=await msalInstance.acquireTokenSilent({scopes:GRAPH_SCOPES,account:spAccount})
+    .catch(()=>msalInstance.acquireTokenPopup({scopes:GRAPH_SCOPES,account:spAccount}));
+  return resp.accessToken;
+}
+async function spListFiles(token){
+  const {siteId,driveId,folderPath}=spSettings;
+  if(!siteId||!driveId){
+    showSpError('Vul Site ID en Drive ID in onder Instellingen → SharePoint Koppeling.');
+    return;
+  }
+  const url=`https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/items/root:/${folderPath}:/children?$select=name,size,lastModifiedDateTime&$orderby=lastModifiedDateTime desc`;
+  const resp=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
+  if(!resp.ok){
+    const err=await resp.json();
+    showSpError(`Bestanden ophalen mislukt: ${err.error?.message||resp.status}`);
+    return;
+  }
+  const data=await resp.json();
+  const jsonFiles=(data.value||[]).filter(f=>f.name.endsWith('.json'));
+
+  const preview=document.getElementById('sp-files-preview');
+  const list=document.getElementById('sp-files-list');
+  if(!jsonFiles.length){
+    list.innerHTML='<span style="color:var(--orange)">Geen JSON-bestanden gevonden in de map. Is de N8N workflow al gedraaid?</span>';
+  }else{
+    list.innerHTML=jsonFiles.map(f=>{
+      const date=new Date(f.lastModifiedDateTime).toLocaleString('nl-NL');
+      const type=f.name.includes('performance')?
+        '<span style="background:var(--green-pale);color:var(--green);padding:1px 5px;border-radius:3px;font-size:10px">PERF</span>':
+        '<span style="background:var(--blue-mid);color:var(--blue);padding:1px 5px;border-radius:3px;font-size:10px">INT</span>';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+        ${type} <span style="flex:1">${f.name}</span>
+        <span style="color:var(--text-light);font-size:10px">${date}</span>
+      </div>`;
+    }).join('');
+  }
+  preview.style.display='';
+}
+async function spLoadData(){
+  hideSpError();
+  const loadBtn=document.getElementById('btn-sp-load');
+  loadBtn.textContent='⏳ Laden…'; loadBtn.disabled=true;
+  try{
+    const token=await spGetToken();
+    const {siteId,driveId,folderPath}=spSettings;
+    // Haal bestandslijst op
+    const url=`https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/items/root:/${folderPath}:/children?$select=name,@microsoft.graph.downloadUrl&$orderby=lastModifiedDateTime desc`;
+    const resp=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
+    if(!resp.ok) throw new Error(`Bestandslijst ophalen mislukt: ${resp.status}`);
+    const data=await resp.json();
+    const jsonFiles=(data.value||[]).filter(f=>f.name.endsWith('.json'));
+    if(!jsonFiles.length) throw new Error('Geen JSON-bestanden gevonden. Is de N8N workflow al gedraaid?');
+
+    let newInteractie=[], newPerf=[];
+    let fileNames=[];
+
+    for(const file of jsonFiles){
+      const fileResp=await fetch(file['@microsoft.graph.downloadUrl']);
+      if(!fileResp.ok) continue;
+      const json=await fileResp.json();
+      if(file.name.includes('performance')){
+        // Performance JSON van N8N
+        const records=json.records||[];
+        records.forEach(p=>{newPerf.push(p);});
+        fileNames.push({name:file.name,type:'perf'});
+      }else if(file.name.includes('interacties')){
+        // Interactie JSON van N8N — herstel datum-objecten
+        const records=json.records||[];
+        records.forEach(r=>{
+          r.datum=new Date(r.datumStr+'T'+(r.tijdStr||'00:00')+':00');
+        });
+        newInteractie=[...newInteractie,...records];
+        fileNames.push({name:file.name,type:'int'});
+      }
+    }
+
+    if(!newInteractie.length&&!newPerf.length) throw new Error('Bestanden geladen maar geen geldige records gevonden.');
+
+    // Laad in de tool
+    if(newInteractie.length){
+      allRecords=dedup([...allRecords,...newInteractie].sort((a,b)=>a.datum-b.datum));
+    }
+    if(newPerf.length){
+      newPerf.forEach(p=>{
+        const idx=perfRecords.findIndex(r=>r.naam===p.naam);
+        if(idx>=0)perfRecords[idx]=p; else perfRecords.push(p);
+      });
+    }
+    loadedFileNames=[...loadedFileNames,...fileNames];
+    saveToStorage();
+    buildPeriodList();
+    setupMultiSelect();
+    applyFilters();
+    showDashboard();
+    if(perfRecords.length) showPerfData();
+
+    // Ververs bestandslijst
+    await spListFiles(token);
+    loadBtn.textContent='↓ Laad uit SharePoint'; loadBtn.disabled=false;
+  }catch(e){
+    showSpError(e.message);
+    loadBtn.textContent='↓ Laad uit SharePoint'; loadBtn.disabled=false;
+  }
+}
+function showSpError(msg){
+  const el=document.getElementById('sp-error');
+  el.textContent=msg; el.style.display='';
+}
+function hideSpError(){
+  document.getElementById('sp-error').style.display='none';
+}
+
+init();
+loadSpSettings();
+</script>
+</body>
+</html>
