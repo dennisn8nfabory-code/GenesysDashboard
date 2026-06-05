@@ -2208,29 +2208,52 @@ function renderTeamConfigTable(){
   if(!tbody)return;
   const q=(document.getElementById('team-search')?.value||'').toLowerCase();
   const teams=getKnownTeams();
-  const entries=Object.entries(activeTeamMap).sort((a,b)=>a[0].localeCompare(b[0],'nl'));
-  const filtered=q?entries.filter(([naam])=>naam.toLowerCase().includes(q)):entries;
-  tbody.innerHTML=filtered.map(([naam,team])=>{
+
+  function makeRow(naam,team,unassigned){
     const safe=naam.replace(/"/g,'&quot;');
     const safeQ=naam.replace(/'/g,"\\'");
-    return`<tr data-naam="${safe}">
-      <td style="padding:7px 12px;font-weight:500">${naam}</td>
+    return`<tr data-naam="${safe}" style="${unassigned?'background:var(--surface2)':''}">
+      <td style="padding:7px 12px;font-weight:${unassigned?400:500};color:${unassigned?'var(--text-muted)':'var(--text)'}">
+        ${naam}${unassigned?'<span style="margin-left:6px;font-size:10px;color:var(--text-dim);font-family:var(--mono)">(niet ingedeeld)</span>':''}
+      </td>
       <td style="padding:5px 12px">
         <select onchange="onTeamRowChange('${safeQ}',this.value)"
           style="border:1px solid var(--border2);border-radius:var(--radius);padding:4px 6px;font-size:12px;font-family:var(--sans);background:var(--surface);width:100%">
-          ${teams.map(t=>`<option value="${t}"${t===team?' selected':''}>${t}</option>`).join('')}
+          ${unassigned?'<option value="">— Kies team —</option>':''}
+          ${teams.map(t=>`<option value="${t}"${!unassigned&&t===team?' selected':''}>${t}</option>`).join('')}
           <option value="__nieuw__">── Nieuw team…</option>
         </select>
       </td>
       <td style="padding:5px 8px;text-align:center">
-        <button onclick="deleteTeamConfigRow('${safeQ}',this)"
+        ${unassigned?'':`<button onclick="deleteTeamConfigRow('${safeQ}',this)"
           style="background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;padding:2px 6px;border-radius:var(--radius)"
-          title="Verwijder medewerker" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-dim)'">&#x2715;</button>
+          title="Verwijder medewerker" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-dim)'">&#x2715;</button>`}
       </td>
     </tr>`;
-  }).join('')||`<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text-dim)">${q?'Geen resultaten voor "'+q+'"':'Geen medewerkers — klik + Medewerker of laad data via Update'}</td></tr>`;
-}
+  }
 
+  // Toegewezen medewerkers
+  const entries=Object.entries(activeTeamMap).sort((a,b)=>a[0].localeCompare(b[0],'nl'));
+  const filteredAssigned=q?entries.filter(([naam])=>naam.toLowerCase().includes(q)):entries;
+
+  // Niet-ingedeelde agents uit gespreksdata + statusdata
+  const allAgents=new Set();
+  allRecords.forEach(r=>(r.gebruikers||[]).forEach(u=>{if(u&&u.trim())allAgents.add(u.trim());}));
+  agentStatusRecords.forEach(r=>{if(r.naam&&r.naam.trim())allAgents.add(r.naam.trim());});
+  const unassigned=[...allAgents]
+    .filter(n=>!activeTeamMap[n])
+    .filter(n=>!q||n.toLowerCase().includes(q))
+    .sort((a,b)=>a.localeCompare(b,'nl'));
+
+  const assignedRows=filteredAssigned.map(([naam,team])=>makeRow(naam,team,false)).join('');
+  const unassignedHeader=unassigned.length
+    ?`<tr><td colspan="3" style="padding:6px 12px;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-dim);letter-spacing:.08em;text-transform:uppercase;background:var(--surface2);border-top:2px solid var(--border)">Niet ingedeeld (${unassigned.length})</td></tr>`
+    :'';
+  const unassignedRows=unassigned.map(n=>makeRow(n,'',true)).join('');
+
+  tbody.innerHTML=assignedRows+unassignedHeader+unassignedRows
+    ||`<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text-dim)">${q?'Geen resultaten':'Geen medewerkers — laad data via Update'}</td></tr>`;
+}
 function filterTeamConfigRows(){renderTeamConfigTable();}
 
 function onTeamRowChange(naam,val){
