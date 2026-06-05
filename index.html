@@ -1020,10 +1020,19 @@ function tryRestoreFromStorage(){
     const banner=document.getElementById('storage-banner');
     if(banner)banner.classList.add('show');
     buildPeriodList();setupMultiSelect();applyFilters();showDashboard();
+    // Als herstelde records geen convId hebben (oud formaat), datum-markering wissen
+    // zodat de volgende Update een volledige lading doet i.p.v. incrementeel
+    if(allRecords.length && !allRecords.some(r=>r.convId)){
+      localStorage.removeItem('fabory-tel-int-laatste-datum');
+      localStorage.removeItem('fabory-tel-status-laatste-datum');
+    }
     }catch(e){
     console.warn('Herstel mislukt:',e);
+    allRecords=[];
     localStorage.removeItem(STOR_RECORDS);localStorage.removeItem(STOR_PERF);
     localStorage.removeItem(STOR_STATUS);localStorage.removeItem(STOR_FILES);
+    localStorage.removeItem('fabory-tel-int-laatste-datum');
+    localStorage.removeItem('fabory-tel-status-laatste-datum');
   }
 }
 function clearStorage(){
@@ -2185,6 +2194,7 @@ function showTab(n){
       requestAnimationFrame(()=>{ try{renderRegioTable();}catch(e){console.error('renderRegioTable FOUT:',e);} });
     }
   }
+  if(n===4)renderTeamConfigTable();
 }
 function showSubTab(id,btn){
   document.querySelectorAll('#tab-3 .sub-panel').forEach(p=>p.classList.remove('active'));
@@ -2312,12 +2322,6 @@ async function saveTeamConfigToN8n(){
   btn.disabled=false;btn.textContent='☁ Opslaan naar n8n';
 }
 
-// Render team config tabel wanneer tab-4 actief wordt
-const _origShowTab=showTab;
-function showTab(n){
-  _origShowTab(n);
-  if(n===4)renderTeamConfigTable();
-}
 
 init();
 </script>
