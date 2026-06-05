@@ -653,13 +653,7 @@ tr:hover td{background:var(--surface2)}
     <div class="panel-filter-row">
       <span class="filter-label">Team</span>
       <div class="toggle-group" id="team-filter-group">
-        <button class="toggle-btn active" onclick="setTeamFilter('',this)">Alle teams</button>
-        <button class="toggle-btn" onclick="setTeamFilter('NL SALES NOORDOOST',this)">Noordoost</button>
-        <button class="toggle-btn" onclick="setTeamFilter('NL SALES WEST',this)">West</button>
-        <button class="toggle-btn" onclick="setTeamFilter('NL SALES ZUID',this)">Zuid</button>
-        <button class="toggle-btn" onclick="setTeamFilter('NL INS KAM',this)">Nat. Accounts</button>
-        <button class="toggle-btn" onclick="setTeamFilter('NL INS BU',this)">Petro</button>
-        <button class="toggle-btn" onclick="setTeamFilter('Overig',this)">Overig</button>
+        <!-- Dynamisch gevuld via renderTeamFilterButtons() -->
       </div>
     </div>
     <div class="table-wrap"><table id="agent-table">
@@ -909,7 +903,7 @@ function getKnownTeams(){
   const fromMembers=Object.values(activeTeamMap).filter(Boolean);
   return[...new Set([...customTeams,...fromMembers,'Overig'])].sort();
 }
-function rebuildActiveTeamMap(){activeTeamMap={...customTeamMap};}
+function rebuildActiveTeamMap(){activeTeamMap={...customTeamMap};renderTeamFilterButtons();}
 function loadTeamConfigFromStorage(){
   try{
     const s=localStorage.getItem(STOR_TEAM);
@@ -1472,7 +1466,20 @@ function rebuildMultiSelectForLand(){
   const allWrapups=[...new Set(allRecords.flatMap(r=>r.afrondingen))].filter(Boolean).sort();
   buildMS('wrapup',allWrapups);
 }
-function setTeamFilter(team,btn){activeTeamFilter=team;document.querySelectorAll('#team-filter-group .toggle-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderAgentTable();}
+function setTeamFilter(team){
+  activeTeamFilter=team;
+  document.querySelectorAll('#team-filter-group .toggle-btn').forEach(b=>{
+    b.classList.toggle('active',b.dataset.team===team);
+  });
+  renderAgentTable();
+}
+function renderTeamFilterButtons(){
+  const grp=document.getElementById('team-filter-group');
+  if(!grp)return;
+  const teams=getKnownTeams();
+  grp.innerHTML=`<button class="toggle-btn${activeTeamFilter===''?' active':''}" data-team="" onclick="setTeamFilter('')">Alle teams</button>`
+    +teams.map(t=>`<button class="toggle-btn${activeTeamFilter===t?' active':''}" data-team="${t.replace(/"/g,'&quot;')}" onclick="setTeamFilter('${t.replace(/'/g,"\'")}')"> ${t}</button>`).join('');
+}
 function setPerfTeamFilter(team,btn){activePerfTeamFilter=team;document.querySelectorAll('#perf-team-group .toggle-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderPerfTable();}
 
 // ═══ ANALYSE ══════════════════════════════════════════════════════════════════
@@ -1712,7 +1719,7 @@ function renderRegioTable() {
   });
 }
 
-function renderAll(){
+function renderAll(){renderTeamFilterButtons();
   renderKPIs();renderQueueTable();renderCharts();renderAgentTable();renderStatusOverzicht();
   const tab6=document.getElementById('tab-6');
   if(tab6&&tab6.classList.contains('active'))renderRegioTable();
