@@ -1108,10 +1108,13 @@ async function loadFromWebhook(){
       // Eerste keer of na wissen: vervang alles
       allRecords=dedup(nieuw.sort((a,b)=>a.datum-b.datum));
     }
-    // Sla laatste datum op
+    // Sla laatste datum min 1 dag op zodat de laatste dag altijd herhaald wordt
+    // (laat-geboekte records worden zo nooit gemist; dedup voorkomt echte duplicaten)
     if(allRecords.length){
-      const laatste=allRecords[allRecords.length-1].datumStr;
-      localStorage.setItem('fabory-tel-int-laatste-datum',laatste);
+      const d=new Date(allRecords[allRecords.length-1].datumStr+'T12:00:00Z');
+      d.setDate(d.getDate()-1);
+      const vanafDatum=d.toISOString().split('T')[0];
+      localStorage.setItem('fabory-tel-int-laatste-datum',vanafDatum);
     }
   }else{warnings.push(`Interacties: ${intResult.reason?.message||'fout'}`);}
 
@@ -1129,10 +1132,11 @@ async function loadFromWebhook(){
     }else{
       agentStatusRecords=nieuw;
     }
-    // Sla laatste datum op
+    // Sla laatste datum min 1 dag op (zelfde strategie als interacties)
     if(agentStatusRecords.length){
       const laatste=agentStatusRecords.reduce((max,r)=>r.datum_str>max?r.datum_str:max,'');
-      localStorage.setItem('fabory-tel-status-laatste-datum',laatste);
+      const d=new Date(laatste+'T12:00:00Z');d.setDate(d.getDate()-1);
+      localStorage.setItem('fabory-tel-status-laatste-datum',d.toISOString().split('T')[0]);
     }
   }else{warnings.push(`Agent status: ${statusResult.reason?.message||'fout'}`);agentStatusRecords=[];}
 
