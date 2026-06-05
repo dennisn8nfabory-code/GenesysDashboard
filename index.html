@@ -722,8 +722,8 @@ tr:hover td{background:var(--surface2)}
         style="border:1px solid var(--border2);border-radius:var(--radius);padding:6px 10px;font-size:12px;font-family:var(--sans);outline:none;width:220px"
         oninput="filterTeamConfigRows(this.value)">
       <button class="btn btn-light" onclick="addTeamConfigRow()" style="font-size:12px">+ Medewerker</button>
+      <button class="btn btn-light" onclick="addTeamRow()" style="font-size:12px">+ Team</button>
       <button class="btn btn-primary" onclick="saveTeamConfigToN8n()" style="font-size:12px" id="btn-team-save">☁ Opslaan naar n8n</button>
-      <button class="btn btn-light" onclick="initTeamConfigFromCode()" style="font-size:12px" title="Vul de tabel in vanuit de hardcoded TEAM_MAP in de code (overschrijft niets in n8n)">↺ Reset uit code</button>
       <span id="team-save-msg" style="font-family:var(--mono);font-size:11px;color:var(--green);opacity:0;transition:opacity .3s"></span>
     </div>
     <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;max-height:480px;overflow-y:auto">
@@ -856,7 +856,7 @@ tr:hover td{background:var(--surface2)}
   <div class="chart-card" style="margin-top:24px;margin-bottom:24px">
     <div class="chart-header">
       <h3>NL SALES — verdeling beantwoorde gesprekken per team</h3>
-      <span style="font-size:12px;color:var(--text-muted)">Alleen beantwoorde gesprekken · via agent → TEAM_MAP</span>
+      <span style="font-size:12px;color:var(--text-muted)">Alleen beantwoorde gesprekken · via agent → Team Configuratie</span>
     </div>
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -888,7 +888,7 @@ tr:hover td{background:var(--surface2)}
 <script>
 // ═══ CONSTANTS ════════════════════════════════════════════════════════════════
 const DAYS_FULL=['Zondag','Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag'];
-const KNOWN_TEAMS=['NL SALES NOORDOOST','NL SALES WEST','NL SALES ZUID','NL INS KAM','NL INS BU','Supervisors','AM SME','Overig'];
+// KNOWN_TEAMS is verwijderd — gebruik getKnownTeams() voor dynamische teamlijst
 const DAY_COLORS={'avg':'#0075BD',1:'#1F8A4C',2:'#C68410',3:'#7C3AED',4:'#C62828',5:'#0891B2'};
 const STOR_RECORDS='fabory-tel-records-v2';
 const STOR_PERF='fabory-tel-perf-v1';
@@ -897,64 +897,32 @@ const STOR_SETTINGS='fabory-tel-settings-v2';
 const STOR_STATUS='fabory-tel-status-v1';
 const STOR_TEAM='fabory-tel-team-v1'; // bewaard ook na clearStorage()
 
-const TEAM_MAP={
-  // National Accounts
-  'Tom Sluijter':'NL INS KAM','Patrick Meijers':'NL INS KAM','Noud van Rijswijk':'NL INS KAM',
-  'Ed van Berkel':'NL INS KAM','Paul Konijnenburg':'NL INS KAM','Linda de Mol':'NL INS KAM',
-  'Henny Morselt':'NL INS KAM','Felice Hulsman':'NL INS KAM','Rick van Boxtel':'NL INS KAM',
-  'Jaap Bartels':'NL INS KAM','Rosalie Kerkhof':'NL INS KAM','Rosalie Kerkhoff':'NL INS KAM',
-  'Claudia van Houtum':'NL INS KAM','Iris Verstappen':'NL INS KAM',
-  // Noord Oost NL
-  'Harold Bos':'NL SALES NOORDOOST','Arjan Tammenga':'NL SALES NOORDOOST',
-  'Jos Vlaar':'NL SALES NOORDOOST','Bas Manni':'NL SALES NOORDOOST',
-  'Ron Klaver':'NL SALES NOORDOOST','Bas van der Vegte':'NL SALES NOORDOOST',
-  'Henk Keurentjes':'NL SALES NOORDOOST','Maarten Burger':'NL SALES NOORDOOST',
-  'David van Tol':'NL SALES NOORDOOST','Marcel Jongman':'NL SALES NOORDOOST',
-  'Aryan Oosting':'NL SALES NOORDOOST','Mark de Haas':'NL SALES NOORDOOST',
-  'Rene Jansen':'NL SALES NOORDOOST','Pascal van Ginkel':'NL SALES NOORDOOST',
-  // West NL
-  'Leo de Koning':'NL SALES WEST','leo de koning':'NL SALES WEST',
-  'Arnaud de Graaf':'NL SALES WEST','arnaud de graaf':'NL SALES WEST',
-  'Mirjam van der Heiden':'NL SALES WEST','Anass Laamraoui':'NL SALES WEST',
-  'Jolanda van der Plas':'NL SALES WEST','Xavier Rosalia':'NL SALES WEST',
-  'Peter van der Lely':'NL SALES WEST','Robbert Alblas':'NL SALES WEST',
-  'Arnout Jongejan':'NL SALES WEST','Jorrit van der Wiel':'NL SALES WEST',
-  // Zuid NL
-  'Mark Notten':'NL SALES ZUID','Peggy van Zijl':'NL SALES ZUID',
-  'Phaedra Ponson':'NL SALES ZUID','Bas Bastiaanssen':'NL SALES ZUID',
-  'Yehudi Varenhout':'NL SALES ZUID','Jeremy Boom':'NL SALES ZUID',
-  'Karel van Elderen':'NL SALES ZUID','Josefine Wijnhoven':'NL SALES ZUID',
-  'Jos Bidlot':'NL SALES ZUID','Rolf van Geel':'NL SALES ZUID',
-  'Paul Kroon':'NL SALES ZUID','Sophia van der Putten':'NL SALES ZUID',
-  'Bastiaan Anne':'NL SALES ZUID','Astrid Stulemeijer':'NL SALES ZUID',
-  // Petro
-  'Rob Knippenberg':'NL INS BU','Ron van den Berg':'NL INS BU',
-  'Laura Peters':'NL INS BU','Willem Grootenboer':'NL INS BU',
-  'Jeroen Kempes':'NL INS BU','Michel Langendijk':'NL INS BU',
-  'michel langendijk':'NL INS BU','Paul Bruseker':'NL INS BU',
-  'Bart-Jan van der Jagt':'NL INS BU',
-  // Supervisors / buiten scope
-  'Dennis Groothuizen':'Supervisors',
-  'Albert Hut':'AM SME','Linda van Pelt':'AM SME','Leon van Bijsterveldt':'AM SME',
-  'Joost Baaten':'AM SME','Maurits de Graaff':'AM SME','Marc Ketting':'AM SME',
-};
+// TEAM_MAP verwijderd — teamindeling wordt beheerd via n8n DataTable en Team Configuratie tab
 
-// Runtime team map — TEAM_MAP is de hardcoded fallback,
-// customTeamMap bevat overrides uit n8n DataTable (via webhook of handmatige edit)
-let customTeamMap={};
-let activeTeamMap={...TEAM_MAP};
+// Runtime team map — volledig vanuit n8n DataTable (geen hardcoded fallback)
+let customTeamMap={};     // naam → team (geladen uit n8n of localStorage)
+let customTeams=[];       // extra teams zonder leden (opgeslagen als __team__* rijen in n8n)
+let activeTeamMap={};
 
 function getTeam(n){return activeTeamMap[n]||'Overig';}
-function rebuildActiveTeamMap(){activeTeamMap={...TEAM_MAP,...customTeamMap};}
+function getKnownTeams(){
+  const fromMembers=Object.values(activeTeamMap).filter(Boolean);
+  return[...new Set([...customTeams,...fromMembers,'Overig'])].sort();
+}
+function rebuildActiveTeamMap(){activeTeamMap={...customTeamMap};}
 function loadTeamConfigFromStorage(){
   try{
     const s=localStorage.getItem(STOR_TEAM);
-    if(s){customTeamMap=JSON.parse(s)||{};}
+    if(s){
+      const d=JSON.parse(s);
+      if(d&&d.map){customTeamMap=d.map||{};customTeams=d.teams||[];}
+      else{customTeamMap=d||{};customTeams=[];}// backward compat
+    }
   }catch(e){}
   rebuildActiveTeamMap();
 }
 function saveTeamConfigToStorage(){
-  try{localStorage.setItem(STOR_TEAM,JSON.stringify(customTeamMap));}catch(e){}
+  try{localStorage.setItem(STOR_TEAM,JSON.stringify({map:customTeamMap,teams:customTeams}));}catch(e){}
 }
 
 function getTeamWachtrij(naam){
@@ -1085,6 +1053,7 @@ const WEBHOOK_WRAPUPCODES=N8N_BASE+'/genesys-dashboard-data-wrapupcodes';
 const WEBHOOK_AGENT_STATUS=N8N_BASE+'/genesys-dashboard-data-agent-status';
 const WEBHOOK_TEAM_GET=N8N_BASE+'/genesys-dashboard-team-config';
 const WEBHOOK_TEAM_POST=N8N_BASE+'/genesys-dashboard-team-config-sla-op';
+const WEBHOOK_TEAM_DELETE=N8N_BASE+'/genesys-dashboard-team-config-verwijder';
 
 let wrapupMap={}; // uuid → leesbare naam
 
@@ -1158,11 +1127,16 @@ async function loadFromWebhook(){
   }
 
   // Team config — update activeTeamMap vanuit n8n DataTable
+  // Rijen met naam starting with '__team__' zijn team-definities zonder leden
   if(teamResult.status==='fulfilled'){
     const rows=Array.isArray(teamResult.value)?teamResult.value:[];
     if(rows.length>0){
-      customTeamMap={};
-      rows.forEach(r=>{if(r.naam&&r.team)customTeamMap[r.naam]=r.team;});
+      customTeamMap={};customTeams=[];
+      rows.forEach(r=>{
+        if(!r.naam)return;
+        if(r.naam.startsWith('__team__')){customTeams.push(r.team||r.naam.replace('__team__',''));}
+        else if(r.team){customTeamMap[r.naam]=r.team;}
+      });
       rebuildActiveTeamMap();
       saveTeamConfigToStorage();
       if(document.getElementById('tab-4')?.classList.contains('active'))renderTeamConfigTable();
@@ -1457,7 +1431,7 @@ function applyFilters(){
   const totalQ=getItemCBs('queue').length,totalA=getItemCBs('agent').length;
   const allQ=selQ.length===0||selQ.length===totalQ;const allA=selA.length===0||selA.length===totalA;
   const teamAgenten=activeStatusTeamFilter
-    ?new Set(Object.keys(TEAM_MAP).filter(n=>TEAM_MAP[n]===activeStatusTeamFilter))
+    ?new Set(Object.keys(activeTeamMap).filter(n=>activeTeamMap[n]===activeStatusTeamFilter))
     :null;
   const landRecs=activeLandFilter
     ?allRecords.filter(r=>r.wachtrijPrimair&&r.wachtrijPrimair.startsWith(activeLandFilter))
@@ -1670,7 +1644,7 @@ function renderRegioTable() {
   const nlBeantwoord = nlRecs.filter(r => r.gebruikers.length > 0 && !r.isGemist);
   const nlTotaalBeantwoord = nlBeantwoord.length;
 
-  // Per team: tel beantwoorde NL SALES gesprekken op basis van agent → TEAM_MAP
+  // Per team: tel beantwoorde NL SALES gesprekken op basis van agent → activeTeamMap
   const nlPerTeam = {};
   REGIO_CONFIG.forEach(cfg => { nlPerTeam[cfg.label] = 0; });
   nlPerTeam['Overig'] = 0;
@@ -1747,7 +1721,7 @@ function renderAll(){
 let activeStatusTeamFilter='';
 
 function setupStatusTeamDropdown(){
-  const teams=[...new Set(Object.values(TEAM_MAP).filter(Boolean))].sort();
+  const teams=getKnownTeams();
   const container=document.getElementById('ms-statusteam-items');
   if(!container)return;
   container.innerHTML=`<div class="ms-item" onclick="setStatusTeamFilter('',this)"><input type="radio" name="statusteam" checked> Alle teams</div>`+
@@ -1778,7 +1752,7 @@ function renderStatusOverzicht(){
 
   // Team filter
   const agenten=activeStatusTeamFilter
-    ?Object.keys(TEAM_MAP).filter(n=>TEAM_MAP[n]===activeStatusTeamFilter)
+    ?Object.keys(activeTeamMap).filter(n=>activeTeamMap[n]===activeStatusTeamFilter)
     :null;
 
   const recs=agentStatusRecords.filter(r=>{
@@ -1974,7 +1948,7 @@ function calcAgentStatus(naam){
 function calcTeamStatusAvg(naam,metric){
   // Bereken teamgemiddelde % per status voor vergelijking
   const team=getTeam(naam);
-  const teamleden=Object.keys(TEAM_MAP).filter(n=>TEAM_MAP[n]===team&&n!==naam);
+  const teamleden=Object.keys(activeTeamMap).filter(n=>activeTeamMap[n]===team&&n!==naam);
   if(!teamleden.length)return{};
   let from='',to='';
   if(periodMode!=='alles'&&periodList[periodIndex]){from=periodList[periodIndex].from;to=periodList[periodIndex].to;}
@@ -2225,48 +2199,46 @@ function exportExcel(){
 function renderTeamConfigTable(){
   const tbody=document.getElementById('team-config-tbody');
   if(!tbody)return;
-  // Combineer hardcoded + custom: toon alles uit activeTeamMap
+  const q=(document.getElementById('team-search')?.value||'').toLowerCase();
+  const teams=getKnownTeams();
   const entries=Object.entries(activeTeamMap).sort((a,b)=>a[0].localeCompare(b[0],'nl'));
-  const teamOpts=KNOWN_TEAMS.map(t=>`<option value="${t}">${t}</option>`).join('');
-  tbody.innerHTML=entries.map(([naam,team])=>{
-    const isCustom=naam in customTeamMap;
-    return`<tr data-naam="${naam.replace(/"/g,'&quot;')}">
-      <td style="padding:7px 12px">
-        <span style="font-weight:${isCustom?600:400};color:${isCustom?'var(--text)':'var(--text-muted)'}">${naam}</span>
-        ${isCustom?'':'<span style="font-size:10px;color:var(--text-dim);margin-left:4px">(code)</span>'}
-      </td>
+  const filtered=q?entries.filter(([naam])=>naam.toLowerCase().includes(q)):entries;
+  tbody.innerHTML=filtered.map(([naam,team])=>{
+    const safe=naam.replace(/"/g,'&quot;');
+    const safeQ=naam.replace(/'/g,"\\'");
+    return`<tr data-naam="${safe}">
+      <td style="padding:7px 12px;font-weight:500">${naam}</td>
       <td style="padding:5px 12px">
-        <select onchange="onTeamRowChange('${naam.replace(/'/g,"\\'")}',this.value)"
+        <select onchange="onTeamRowChange('${safeQ}',this.value)"
           style="border:1px solid var(--border2);border-radius:var(--radius);padding:4px 6px;font-size:12px;font-family:var(--sans);background:var(--surface);width:100%">
-          ${KNOWN_TEAMS.map(t=>`<option value="${t}"${t===team?' selected':''}>${t}</option>`).join('')}
+          ${teams.map(t=>`<option value="${t}"${t===team?' selected':''}>${t}</option>`).join('')}
+          <option value="__nieuw__">── Nieuw team…</option>
         </select>
       </td>
       <td style="padding:5px 8px;text-align:center">
-        <button onclick="deleteTeamConfigRow('${naam.replace(/'/g,"\\'")}',this)"
+        <button onclick="deleteTeamConfigRow('${safeQ}',this)"
           style="background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;padding:2px 6px;border-radius:var(--radius)"
-          title="Verwijder uit dashboard (niet uit n8n)" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-dim)'">✕</button>
+          title="Verwijder medewerker" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-dim)'">&#x2715;</button>
       </td>
     </tr>`;
-  }).join('')||'<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text-dim)">Geen medewerkers</td></tr>';
+  }).join('')||`<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text-dim)">${q?'Geen resultaten voor "'+q+'"':'Geen medewerkers — klik + Medewerker of laad data via Update'}</td></tr>`;
 }
 
-function filterTeamConfigRows(q){
-  const lq=q.toLowerCase();
-  document.querySelectorAll('#team-config-tbody tr[data-naam]').forEach(tr=>{
-    const naam=tr.dataset.naam||'';
-    tr.style.display=naam.toLowerCase().includes(lq)?'':'none';
-  });
-}
+function filterTeamConfigRows(){renderTeamConfigTable();}
 
-function onTeamRowChange(naam,team){
-  customTeamMap[naam]=team;
+function onTeamRowChange(naam,val){
+  if(val==='__nieuw__'){
+    const nieuw=prompt('Naam nieuw team:');
+    if(!nieuw||!nieuw.trim()){renderTeamConfigTable();return;}
+    const t=nieuw.trim();
+    if(!customTeams.includes(t))customTeams.push(t);
+    customTeamMap[naam]=t;
+  }else{
+    customTeamMap[naam]=val;
+  }
   rebuildActiveTeamMap();
   saveTeamConfigToStorage();
-  // Markeer de rij als custom (herlaad alleen die cel)
-  const tr=document.querySelector(`#team-config-tbody tr[data-naam="${naam.replace(/"/g,'&quot;')}"] td:first-child span:first-child`);
-  if(tr){tr.style.fontWeight=600;tr.style.color='var(--text)';}
-  const codeLbl=document.querySelector(`#team-config-tbody tr[data-naam="${naam.replace(/"/g,'&quot;')}"] td:first-child span:last-child`);
-  if(codeLbl&&codeLbl.textContent.includes('code'))codeLbl.remove();
+  renderTeamConfigTable();
 }
 
 function addTeamConfigRow(){
@@ -2274,37 +2246,47 @@ function addTeamConfigRow(){
   if(!naam||!naam.trim())return;
   const n=naam.trim();
   if(activeTeamMap[n]){alert(`${n} bestaat al.`);return;}
-  customTeamMap[n]='Overig';
+  const teams=getKnownTeams();
+  customTeamMap[n]=teams.length?teams[0]:'Overig';
   rebuildActiveTeamMap();
   saveTeamConfigToStorage();
   renderTeamConfigTable();
-  // Scroll naar nieuw item
   const tr=document.querySelector(`#team-config-tbody tr[data-naam="${n.replace(/"/g,'&quot;')}"]`);
   if(tr)tr.scrollIntoView({block:'center'});
 }
 
-function deleteTeamConfigRow(naam,btn){
-  if(!confirm(`Verwijder "${naam}" uit de teamindeling in het dashboard?`))return;
+function addTeamRow(){
+  const naam=prompt('Naam nieuw team:');
+  if(!naam||!naam.trim())return;
+  const t=naam.trim();
+  if(getKnownTeams().includes(t)){alert(`Team "${t}" bestaat al.`);return;}
+  customTeams.push(t);
+  saveTeamConfigToStorage();
+  renderTeamConfigTable();
+  const msg=document.getElementById('team-save-msg');
+  if(msg){msg.textContent=`Team "${t}" aangemaakt — sla op naar n8n om te bewaren`;msg.style.opacity=1;setTimeout(()=>msg.style.opacity=0,4000);}
+}
+
+async function deleteTeamConfigRow(naam,btn){
+  if(!confirm(`Verwijder "${naam}" uit de teamindeling?\nDit wordt ook uit n8n verwijderd.`))return;
   delete customTeamMap[naam];
   rebuildActiveTeamMap();
   saveTeamConfigToStorage();
   const tr=btn.closest('tr');if(tr)tr.remove();
+  try{
+    await fetch(WEBHOOK_TEAM_DELETE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({naam})});
+  }catch(e){console.warn('n8n DELETE mislukt:',e);}
 }
 
-function initTeamConfigFromCode(){
-  if(!confirm('Dit vult de tabel met de hardcoded TEAM_MAP uit de code.\nBestaande aanpassingen in het dashboard worden overschreven.\nDoorgaan?'))return;
-  customTeamMap={...TEAM_MAP};
-  rebuildActiveTeamMap();
-  saveTeamConfigToStorage();
-  renderTeamConfigTable();
-}
 
 async function saveTeamConfigToN8n(){
   const btn=document.getElementById('btn-team-save');
   const msg=document.getElementById('team-save-msg');
-  btn.disabled=true;
-  btn.textContent='⏳ Bezig…';
+  btn.disabled=true;btn.textContent='⏳ Bezig…';
+  // Leden + speciale __team__ rijen voor teams zonder leden
   const teamdata=Object.entries(activeTeamMap).map(([naam,team])=>({naam,team}));
+  const ledenTeams=new Set(Object.values(activeTeamMap));
+  customTeams.filter(t=>!ledenTeams.has(t)).forEach(t=>teamdata.push({naam:'__team__'+t,team:t}));
   try{
     const r=await fetch(WEBHOOK_TEAM_POST,{
       method:'POST',
@@ -2320,6 +2302,17 @@ async function saveTeamConfigToN8n(){
     setTimeout(()=>{msg.style.opacity=0;msg.style.color='var(--green)';},4000);
   }
   btn.disabled=false;btn.textContent='☁ Opslaan naar n8n';
+}
+
+function deleteTeamRow(team){
+  if(!confirm(`Verwijder team "${team}"?\nMedewerkers in dit team krijgen "Overig" als team.`))return;
+  customTeams=customTeams.filter(t=>t!==team);
+  Object.keys(customTeamMap).forEach(n=>{if(customTeamMap[n]===team)customTeamMap[n]='Overig';});
+  rebuildActiveTeamMap();
+  saveTeamConfigToStorage();
+  // Verwijder ook de __team__ rij uit n8n
+  fetch(WEBHOOK_TEAM_DELETE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({naam:'__team__'+team})}).catch(()=>{});
+  renderTeamConfigTable();
 }
 
 
