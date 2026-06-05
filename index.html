@@ -739,7 +739,7 @@ tr:hover td{background:var(--surface2)}
       </table>
     </div>
     <p style="font-size:11px;color:var(--text-dim);margin-top:8px">
-      💡 Verwijderde medewerkers worden niet automatisch uit de n8n DataTable verwijderd — verwijder die handmatig in de n8n interface.
+      💡 Verwijderen stuurt automatisch een DELETE naar n8n. Medewerkers uit de data die nog geen team hebben, verschijnen onderaan als <em>Niet ingedeeld</em>.
     </p>
   </div>
 </div>
@@ -2227,6 +2227,7 @@ function renderTeamConfigTable(){
 function filterTeamConfigRows(){renderTeamConfigTable();}
 
 function onTeamRowChange(naam,val){
+  if(!val||val==='')return; // lege placeholder "— Kies team —" negeren
   if(val==='__nieuw__'){
     const nieuw=prompt('Naam nieuw team:');
     if(!nieuw||!nieuw.trim()){renderTeamConfigTable();return;}
