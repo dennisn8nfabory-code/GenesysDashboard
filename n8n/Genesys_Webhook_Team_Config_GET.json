@@ -1,0 +1,86 @@
+{
+  "name": "Genesys Webhook Team Config GET",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "genesys-dashboard-team-config",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-team-get",
+      "name": "📥 Webhook GET",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "genesys-dashboard-team-config"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TEAM_CONFIG_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "Genesys Team Config",
+          "cachedResultUrl": "/projects/00k6p2OCnzNloX5f/datatables/REPLACE_WITH_TEAM_CONFIG_TABLE_ID"
+        },
+        "returnAll": true
+      },
+      "id": "dt-team-get",
+      "name": "📋 Haal Team Config op",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [224, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => ({\n  json: {\n    naam: item.json.naam || '',\n    team: item.json.team || ''\n  }\n})).filter(item => item.json.naam);"
+      },
+      "id": "code-team-map",
+      "name": "🔧 Map naar naam/team",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [448, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($input.all().map(item => item.json)) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Content-Type", "value": "application/json" },
+              { "name": "Access-Control-Allow-Origin", "value": "*" }
+            ]
+          }
+        }
+      },
+      "id": "respond-team-get",
+      "name": "📤 Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [672, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "📥 Webhook GET": {
+      "main": [[{ "node": "📋 Haal Team Config op", "type": "main", "index": 0 }]]
+    },
+    "📋 Haal Team Config op": {
+      "main": [[{ "node": "🔧 Map naar naam/team", "type": "main", "index": 0 }]]
+    },
+    "🔧 Map naar naam/team": {
+      "main": [[{ "node": "📤 Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" },
+  "tags": [],
+  "_setup": {
+    "stap_1": "Maak een DataTable aan in n8n met naam 'Genesys Team Config' en kolommen: naam (string), team (string)",
+    "stap_2": "Vervang REPLACE_WITH_TEAM_CONFIG_TABLE_ID door het echte DataTable ID (te vinden in de URL van de DataTable)",
+    "stap_3": "Vul de DataTable initieel met de medewerkers uit TEAM_MAP in het dashboard",
+    "stap_4": "Activeer de workflow"
+  }
+}

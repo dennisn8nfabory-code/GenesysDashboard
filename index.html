@@ -705,11 +705,42 @@ tr:hover td{background:var(--surface2)}
       <div class="alert alert-info"><strong>Versie 2.1</strong> — Fabory Inside Sales Telefonie Dashboard</div>
       <p style="font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:12px 0 6px">Data persistentie</p>
       <div class="code-block">Data wordt automatisch opgeslagen in het browsergeheugen.<br>Na vernieuwen wordt de laatste dataset hersteld.</div>
-      <p style="font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:12px 0 6px">CSV-types automatisch herkend</p>
-      <div class="code-block">Interactie-export → kolom "Gebruikers" aanwezig<br>Agentsamenvatting → kolom "Naam agent" aanwezig</div>
       <p style="font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:12px 0 6px">Performance ↕ vs. team</p>
       <div class="code-block">Groen = korter dan teamgemiddelde<br>Rood = langer dan teamgemiddelde</div>
     </div>
+  </div>
+
+  <!-- TEAM CONFIGURATIE — volle breedte onder de 2-koloms grid -->
+  <div class="settings-card" style="margin-top:20px">
+    <h2>Team Configuratie</h2>
+    <div class="alert alert-info" style="margin-bottom:16px">
+      Team-indeling wordt opgehaald uit de n8n DataTable bij elke <strong>Update</strong> en lokaal gecacht — ook na "Wissen" blijft de teamindeling beschikbaar.
+      Wijzigingen die je hier opslaat worden direct naar n8n gestuurd.
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="team-search" placeholder="🔍 Zoek medewerker…"
+        style="border:1px solid var(--border2);border-radius:var(--radius);padding:6px 10px;font-size:12px;font-family:var(--sans);outline:none;width:220px"
+        oninput="filterTeamConfigRows(this.value)">
+      <button class="btn btn-light" onclick="addTeamConfigRow()" style="font-size:12px">+ Medewerker</button>
+      <button class="btn btn-primary" onclick="saveTeamConfigToN8n()" style="font-size:12px" id="btn-team-save">☁ Opslaan naar n8n</button>
+      <button class="btn btn-light" onclick="initTeamConfigFromCode()" style="font-size:12px" title="Vul de tabel in vanuit de hardcoded TEAM_MAP in de code (overschrijft niets in n8n)">↺ Reset uit code</button>
+      <span id="team-save-msg" style="font-family:var(--mono);font-size:11px;color:var(--green);opacity:0;transition:opacity .3s"></span>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;max-height:480px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead style="position:sticky;top:0;z-index:1">
+          <tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
+            <th style="padding:8px 12px;text-align:left;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase">NAAM</th>
+            <th style="padding:8px 12px;text-align:left;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase">TEAM</th>
+            <th style="padding:8px 12px;width:36px"></th>
+          </tr>
+        </thead>
+        <tbody id="team-config-tbody"></tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:var(--text-dim);margin-top:8px">
+      💡 Verwijderde medewerkers worden niet automatisch uit de n8n DataTable verwijderd — verwijder die handmatig in de n8n interface.
+    </p>
   </div>
 </div>
 
@@ -857,12 +888,14 @@ tr:hover td{background:var(--surface2)}
 <script>
 // ═══ CONSTANTS ════════════════════════════════════════════════════════════════
 const DAYS_FULL=['Zondag','Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag'];
+const KNOWN_TEAMS=['NL SALES NOORDOOST','NL SALES WEST','NL SALES ZUID','NL INS KAM','NL INS BU','Supervisors','AM SME','Overig'];
 const DAY_COLORS={'avg':'#0075BD',1:'#1F8A4C',2:'#C68410',3:'#7C3AED',4:'#C62828',5:'#0891B2'};
 const STOR_RECORDS='fabory-tel-records-v2';
 const STOR_PERF='fabory-tel-perf-v1';
 const STOR_FILES='fabory-tel-files-v2';
 const STOR_SETTINGS='fabory-tel-settings-v2';
 const STOR_STATUS='fabory-tel-status-v1';
+const STOR_TEAM='fabory-tel-team-v1'; // bewaard ook na clearStorage()
 
 const TEAM_MAP={
   // National Accounts
@@ -905,7 +938,25 @@ const TEAM_MAP={
   'Albert Hut':'AM SME','Linda van Pelt':'AM SME','Leon van Bijsterveldt':'AM SME',
   'Joost Baaten':'AM SME','Maurits de Graaff':'AM SME','Marc Ketting':'AM SME',
 };
-function getTeam(n){return TEAM_MAP[n]||'Overig';}
+
+// Runtime team map — TEAM_MAP is de hardcoded fallback,
+// customTeamMap bevat overrides uit n8n DataTable (via webhook of handmatige edit)
+let customTeamMap={};
+let activeTeamMap={...TEAM_MAP};
+
+function getTeam(n){return activeTeamMap[n]||'Overig';}
+function rebuildActiveTeamMap(){activeTeamMap={...TEAM_MAP,...customTeamMap};}
+function loadTeamConfigFromStorage(){
+  try{
+    const s=localStorage.getItem(STOR_TEAM);
+    if(s){customTeamMap=JSON.parse(s)||{};}
+  }catch(e){}
+  rebuildActiveTeamMap();
+}
+function saveTeamConfigToStorage(){
+  try{localStorage.setItem(STOR_TEAM,JSON.stringify(customTeamMap));}catch(e){}
+}
+
 function getTeamWachtrij(naam){
   const team=getTeam(naam);
   const map={
@@ -928,6 +979,7 @@ let activeTeamFilter='',activePerfTeamFilter='';
 // ═══ INIT ═════════════════════════════════════════════════════════════════════
 function init(){
   loadSettings();
+  loadTeamConfigFromStorage(); // laad gecachede team config (overleeft clearStorage)
   const today=new Date();
   const from=new Date(today); from.setDate(from.getDate()-30);
   document.getElementById('hdr-tot').value=today.toISOString().split('T')[0];
@@ -1018,10 +1070,12 @@ function saveSettings(){
 }
 
 // ═══ WEBHOOK ══════════════════════════════════════════════════════════════════
-const WEBHOOK_INTERACTIES='https://fab-n8n-dev-app-hsh6g7htbzcyajgs.westeurope-01.azurewebsites.net/webhook/genesys-dashboard-data-interacties';
-const WEBHOOK_PERFORMANCE='https://fab-n8n-dev-app-hsh6g7htbzcyajgs.westeurope-01.azurewebsites.net/webhook/genesys-dashboard-data-Performance';
-const WEBHOOK_WRAPUPCODES='https://fab-n8n-dev-app-hsh6g7htbzcyajgs.westeurope-01.azurewebsites.net/webhook/genesys-dashboard-data-wrapupcodes';
-const WEBHOOK_AGENT_STATUS='https://fab-n8n-dev-app-hsh6g7htbzcyajgs.westeurope-01.azurewebsites.net/webhook/genesys-dashboard-data-agent-status';
+const N8N_BASE='https://fab-n8n-dev-app-hsh6g7htbzcyajgs.westeurope-01.azurewebsites.net/webhook';
+const WEBHOOK_INTERACTIES=N8N_BASE+'/genesys-dashboard-data-interacties';
+const WEBHOOK_WRAPUPCODES=N8N_BASE+'/genesys-dashboard-data-wrapupcodes';
+const WEBHOOK_AGENT_STATUS=N8N_BASE+'/genesys-dashboard-data-agent-status';
+const WEBHOOK_TEAM_GET=N8N_BASE+'/genesys-dashboard-team-config';
+const WEBHOOK_TEAM_POST=N8N_BASE+'/genesys-dashboard-team-config-sla-op';
 
 let wrapupMap={}; // uuid → leesbare naam
 
@@ -1081,10 +1135,11 @@ async function loadFromWebhook(){
   const intUrl=WEBHOOK_INTERACTIES+(intVanaf?`?vanaf=${intVanaf}`:'');
   const statusUrl=WEBHOOK_AGENT_STATUS+(statusVanaf?`?vanaf=${statusVanaf}`:'');
 
-  const [intResult,wrapupResult,statusResult]=await Promise.allSettled([
+  const [intResult,wrapupResult,statusResult,teamResult]=await Promise.allSettled([
     fetch(intUrl).then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json();}),
     fetch(WEBHOOK_WRAPUPCODES).then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json();}),
-    fetch(statusUrl).then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json();})
+    fetch(statusUrl).then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json();}),
+    fetch(WEBHOOK_TEAM_GET).then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json();})
   ]);
 
   // Bouw wrapupMap op vóór mapInteracties
@@ -1092,6 +1147,19 @@ async function loadFromWebhook(){
     const codes=Array.isArray(wrapupResult.value)?wrapupResult.value:[];
     wrapupMap={};codes.forEach(c=>{if(c.id&&c.name)wrapupMap[c.id]=c.name;});
   }
+
+  // Team config — update activeTeamMap vanuit n8n DataTable
+  if(teamResult.status==='fulfilled'){
+    const rows=Array.isArray(teamResult.value)?teamResult.value:[];
+    if(rows.length>0){
+      customTeamMap={};
+      rows.forEach(r=>{if(r.naam&&r.team)customTeamMap[r.naam]=r.team;});
+      rebuildActiveTeamMap();
+      saveTeamConfigToStorage();
+      if(document.getElementById('tab-4')?.classList.contains('active'))renderTeamConfigTable();
+    }
+  }
+  // Als teamResult mislukt → gebruik gecachede customTeamMap uit localStorage (al geladen in init)
 
   const warnings=[];
 
@@ -2141,6 +2209,114 @@ function exportExcel(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Medewerker','Team','Totaal','Inkomend','Uitgaand','Gem. duur','Doorverbonden%','Intern'],...calcPerAgent(filteredRecords).map(a=>[a.naam,getTeam(a.naam),a.totaal,a.inkomend,a.uitgaand,fmtDuur(a.gemDuurMs),+(a.inkomend?(a.doorverbonden/a.inkomend*100).toFixed(1):0),a.internAantal])]),'06_Medewerkers_activiteit');
   if(perfRecords.length){const teamAvg={};const teams=[...new Set(perfRecords.map(p=>getTeam(p.naam)))];teams.forEach(t=>{const tr=perfRecords.filter(p=>getTeam(p.naam)===t&&p.verwerking>0);teamAvg[t]=tr.length?tr.reduce((s,p)=>s+p.gemGespMs,0)/tr.length:0;});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Periode:',perfRecords[0]?.beginInterval+' — '+perfRecords[0]?.eindeInterval],[],['Medewerker','Team','Verwerkt','Beantwoord','Gem. gesprekstijd (s)','Gem. verwerking (s)','Gem. ACW (s)','In wachtstand','Wachtstand%','Doorverbonden','Doorverbonden%','↕ vs. team (s)'],...[...perfRecords].sort((a,b)=>b.verwerking-a.verwerking).map(p=>{const team=getTeam(p.naam);const avg=teamAvg[team]||0;const holdPct=p.verwerking>0?+(p.inWachtstand/p.verwerking*100).toFixed(1):0;const doorPct=p.beantwoord>0?+(p.doorverbonden/p.beantwoord*100).toFixed(1):0;const deltaS=avg>0?+((p.gemGespMs-avg)/1000).toFixed(1):0;return[p.naam,team,p.verwerking,p.beantwoord,+(p.gemGespMs/1000).toFixed(0),+(p.gemVerwMs/1000).toFixed(0),+(p.gemAcwMs/1000).toFixed(0),p.inWachtstand,holdPct,p.doorverbonden,doorPct,deltaS];})]),'07_Performance');}
   XLSX.writeFile(wb,`Fabory_Telefonie_${p.replace(/[^a-zA-Z0-9]/g,'-')}.xlsx`);
+}
+
+// ═══ TEAM CONFIG UI ═══════════════════════════════════════════════════════════
+function renderTeamConfigTable(){
+  const tbody=document.getElementById('team-config-tbody');
+  if(!tbody)return;
+  // Combineer hardcoded + custom: toon alles uit activeTeamMap
+  const entries=Object.entries(activeTeamMap).sort((a,b)=>a[0].localeCompare(b[0],'nl'));
+  const teamOpts=KNOWN_TEAMS.map(t=>`<option value="${t}">${t}</option>`).join('');
+  tbody.innerHTML=entries.map(([naam,team])=>{
+    const isCustom=naam in customTeamMap;
+    return`<tr data-naam="${naam.replace(/"/g,'&quot;')}">
+      <td style="padding:7px 12px">
+        <span style="font-weight:${isCustom?600:400};color:${isCustom?'var(--text)':'var(--text-muted)'}">${naam}</span>
+        ${isCustom?'':'<span style="font-size:10px;color:var(--text-dim);margin-left:4px">(code)</span>'}
+      </td>
+      <td style="padding:5px 12px">
+        <select onchange="onTeamRowChange('${naam.replace(/'/g,"\\'")}',this.value)"
+          style="border:1px solid var(--border2);border-radius:var(--radius);padding:4px 6px;font-size:12px;font-family:var(--sans);background:var(--surface);width:100%">
+          ${KNOWN_TEAMS.map(t=>`<option value="${t}"${t===team?' selected':''}>${t}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:5px 8px;text-align:center">
+        <button onclick="deleteTeamConfigRow('${naam.replace(/'/g,"\\'")}',this)"
+          style="background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;padding:2px 6px;border-radius:var(--radius)"
+          title="Verwijder uit dashboard (niet uit n8n)" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-dim)'">✕</button>
+      </td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text-dim)">Geen medewerkers</td></tr>';
+}
+
+function filterTeamConfigRows(q){
+  const lq=q.toLowerCase();
+  document.querySelectorAll('#team-config-tbody tr[data-naam]').forEach(tr=>{
+    const naam=tr.dataset.naam||'';
+    tr.style.display=naam.toLowerCase().includes(lq)?'':'none';
+  });
+}
+
+function onTeamRowChange(naam,team){
+  customTeamMap[naam]=team;
+  rebuildActiveTeamMap();
+  saveTeamConfigToStorage();
+  // Markeer de rij als custom (herlaad alleen die cel)
+  const tr=document.querySelector(`#team-config-tbody tr[data-naam="${naam.replace(/"/g,'&quot;')}"] td:first-child span:first-child`);
+  if(tr){tr.style.fontWeight=600;tr.style.color='var(--text)';}
+  const codeLbl=document.querySelector(`#team-config-tbody tr[data-naam="${naam.replace(/"/g,'&quot;')}"] td:first-child span:last-child`);
+  if(codeLbl&&codeLbl.textContent.includes('code'))codeLbl.remove();
+}
+
+function addTeamConfigRow(){
+  const naam=prompt('Naam medewerker:');
+  if(!naam||!naam.trim())return;
+  const n=naam.trim();
+  if(activeTeamMap[n]){alert(`${n} bestaat al.`);return;}
+  customTeamMap[n]='Overig';
+  rebuildActiveTeamMap();
+  saveTeamConfigToStorage();
+  renderTeamConfigTable();
+  // Scroll naar nieuw item
+  const tr=document.querySelector(`#team-config-tbody tr[data-naam="${n.replace(/"/g,'&quot;')}"]`);
+  if(tr)tr.scrollIntoView({block:'center'});
+}
+
+function deleteTeamConfigRow(naam,btn){
+  if(!confirm(`Verwijder "${naam}" uit de teamindeling in het dashboard?`))return;
+  delete customTeamMap[naam];
+  rebuildActiveTeamMap();
+  saveTeamConfigToStorage();
+  const tr=btn.closest('tr');if(tr)tr.remove();
+}
+
+function initTeamConfigFromCode(){
+  if(!confirm('Dit vult de tabel met de hardcoded TEAM_MAP uit de code.\nBestaande aanpassingen in het dashboard worden overschreven.\nDoorgaan?'))return;
+  customTeamMap={...TEAM_MAP};
+  rebuildActiveTeamMap();
+  saveTeamConfigToStorage();
+  renderTeamConfigTable();
+}
+
+async function saveTeamConfigToN8n(){
+  const btn=document.getElementById('btn-team-save');
+  const msg=document.getElementById('team-save-msg');
+  btn.disabled=true;
+  btn.textContent='⏳ Bezig…';
+  const teamdata=Object.entries(activeTeamMap).map(([naam,team])=>({naam,team}));
+  try{
+    const r=await fetch(WEBHOOK_TEAM_POST,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({teamdata})
+    });
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const result=await r.json();
+    msg.textContent=`✓ ${result.count||teamdata.length} rijen opgeslagen`;
+    msg.style.opacity=1;setTimeout(()=>msg.style.opacity=0,3000);
+  }catch(e){
+    msg.textContent=`✗ Fout: ${e.message}`;msg.style.color='var(--red)';msg.style.opacity=1;
+    setTimeout(()=>{msg.style.opacity=0;msg.style.color='var(--green)';},4000);
+  }
+  btn.disabled=false;btn.textContent='☁ Opslaan naar n8n';
+}
+
+// Render team config tabel wanneer tab-4 actief wordt
+const _origShowTab=showTab;
+function showTab(n){
+  _origShowTab(n);
+  if(n===4)renderTeamConfigTable();
 }
 
 init();
